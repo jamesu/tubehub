@@ -1,0 +1,11 @@
+<% unless current_user.nil? %>
+<%= "Logged in as: #{current_user.name}" %>
+<% end %>
+<h1><%= @channel.name %></h1>
+<div id="status">
+</div>
+<div id="video">
+</div>
+<div id="messages">
+</div>
+<script type="text/javascript">Tube.current_channel = 1;</script>
