@@ -11,6 +11,7 @@ require 'cgi'
 class User < ActiveRecord::Base
   before_validation :set_tokens
   attr_accessor :password
+  attr_accessor :last_set_time
   
   def set_tokens
     if @password
@@ -46,6 +47,24 @@ end
 
 class Channel < ActiveRecord::Base
   belongs_to :user
+  belongs_to :current_video, :class_name => 'Video'
+  has_many :videos
+  
+  # Update to new time (e.g. when user has manipulated slider)
+  def delta_start_time!(new_time, from=Time.now.utc)
+    self.start_time = from - new_time
+    save
+  end
+  
+  def current_time(from=Time.now.utc)
+    start_time ? from - start_time : 0
+  end
+  
+  def update_active_video!(the_video, new_time=0, from=Time.now.utc)
+    self.current_video = the_video
+    self.start_time = from - new_time
+    save
+  end
 end
 
 class Video < ActiveRecord::Base
@@ -54,6 +73,9 @@ class Video < ActiveRecord::Base
 end
 
 dbconfig = YAML.load(File.read('config/database.yml'))
+Time.zone = 'UTC'
+ActiveRecord::Base.time_zone_aware_attributes = true
+ActiveRecord::Base.default_timezone = :utc
 ActiveRecord::Base.establish_connection dbconfig['development']
 
 JSON.create_id = nil
@@ -66,10 +88,23 @@ class WebSocketApp < Rack::WebSocket::Application
     # We cant rely on cookies so wait for the auth message
   end
   
+  def send_message(data)
+    send_data data.to_json
+  end
+  
   def on_message(env, data)
+    begin
+      process_message(env, data)
+    rescue Exception => e
+      puts "EXCEPTION: #{e.inspect}"
+    end
+  end
+  
+  def process_message(env, data)
     message = JSON.parse(data) rescue {}
     user_id = @current_user ? @current_user.name : 'Anonymous'
     puts "#{user_id}: #{message.inspect}"
+    now = Time.now.utc
     
     case message['type']
     when 'auth'
@@ -77,28 +112,31 @@ class WebSocketApp < Rack::WebSocket::Application
       if user && user.auth_token?
         puts "OPEN user == #{user.inspect}"
         @current_user = user
-        #send_data({'type' => 'users', 'users' => SOCKET_CONNECTIONS.map{|s|s.@current_user.name}.uniq}.to_json)
-        send_data({'type' => 'hello', 'user' => @current_user.name}.to_json)
+        send_message({'type' => 'hello', 'user' => @current_user.name})
         @current_user.update_attribute(:auth_token, nil)
       else
-        send_data({'type' => 'hello', 'user' => 'Anonymous'}.to_json)
+        send_message({'type' => 'hello', 'user' => 'Anonymous'})
       end
     when 'subscribe'
       channel = Channel.find_by_id(message['channel_id'])
       if channel
         puts "SUBSCRIBING TO CHANNEL #{channel.name}"
         SUBSCRIPTIONS[channel.id] ||= []
-        SUBSCRIPTIONS[channel.id].each{|socket| socket.send_data({'type' => 'userjoined', 'user' => user_id}.to_json)}
+        SUBSCRIPTIONS[channel.id].each{|socket| socket.send_message({'type' => 'userjoined', 'user' => user_id})}
         SUBSCRIPTIONS[channel.id] << self
-        puts channel.inspect
-        puts @current_user.inspect
         user_scope = (@current_user and @current_user.id == channel.user_id) ? ['admin'] : []
-        send_data({'type' => 'userjoined', 'user' => user_id, 'scope' => user_scope}.to_json)
+        send_message({'type' => 'userjoined', 'user' => user_id, 'scope' => user_scope})
+        
+        # Get current video
+        if channel.current_video
+          puts "VIDEO? #{channel.current_video.url}"
+          send_message({'type' => 'video', 'url' => channel.current_video.url, 'time' => channel.current_time})
+        end
       end
     when 'unsubscribe'
       channel = Channel.find_by_id(message['channel_id'])
       if channel && SUBSCRIPTIONS[channel.id]
-        SUBSCRIPTIONS[channel.id].each{|socket| socket.send_data({'type' => 'userleft', 'user' => user_id}.to_json)}
+        SUBSCRIPTIONS[channel.id].each{|socket| socket.send_message({'type' => 'userleft', 'user' => user_id})}
         SUBSCRIPTIONS[channel.id].delete(self)
       end
     when 'video'
@@ -106,28 +144,43 @@ class WebSocketApp < Rack::WebSocket::Application
       # Only the owner of the channel can set the video
       location = URI.parse(message['url']) rescue nil
       video_id = if location
-        CGI.parse(location.query)['v']
+        CGI.parse(location.query)['v'].to_s
       end
       
       subscribers = SUBSCRIPTIONS[message['channel_id']]
       if video_id && subscribers
         channel = Channel.find_by_id(message['channel_id'])
         if channel.user == @current_user
+          # Update channel video
+          video = if channel.current_video.nil?
+            channel.videos.build(:url => video_id)
+          else
+            channel.current_video.update_attributes(:url => video_id)
+            channel.current_video
+          end
+          channel.update_active_video!(video, message['time']||0, now)
+          # Tell everyone
           subscribers.each do |subscriber|
-            subscriber.send_data({'type' => 'video', 'url' =>  video_id, 'time' => message['time']}.to_json)
+            subscriber.send_message({'type' => 'video', 'url' => video_id, 'time' => message['time']||0})
           end
         end
       end
     when 'video_time'
       return if @current_user.nil?
-      # Only the owner of the channel can set the video_time
       subscribers = SUBSCRIPTIONS[message['channel_id']]
       if subscribers
         puts "SENDING TO: #{SUBSCRIPTIONS[message['channel_id']].map(&:object_id).join(',')}"
         channel = Channel.find_by_id(message['channel_id'])
-        if channel.user == @current_user
+        if !message['time'].nil? and channel.user == @current_user
+          # Adjust channel model time if delta is too large
+          current_time = channel.current_time(now)
+          if (current_time - message['time'] < -1.0) or (current_time - message['time'] > 1.0)
+            puts "ADJUSTING CHANNEL TIME: #{message['time']} vs #{current_time} / #{channel.current_time(now)} #{current_time - message['time']}"
+            puts channel.delta_start_time!(message['time'], now)
+          end
+          # Tell everyone the current time
           subscribers.each do |subscriber|
-            subscriber.send_data({'type' => 'video_time', 'time' => message['time']}.to_json)
+            subscriber.send_message({'type' => 'video_time', 'time' => message['time']})
           end
         end
       end

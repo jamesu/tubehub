@@ -43,6 +43,7 @@ PLATFORMS
 
 DEPENDENCIES
   activerecord
+  activesupport
   haml
   json
   sinatra
