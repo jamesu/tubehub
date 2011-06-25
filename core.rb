@@ -70,6 +70,27 @@ end
 class Video < ActiveRecord::Base
   belongs_to :channel
   belongs_to :user
+  
+  BLIP_MATCH = /\/play\/(.*)/
+  def self.get_playback_info(url)
+    location = URI.parse(url) rescue nil
+    host = location ? location.host : ''
+    query = location ? CGI.parse(location.query) : {} rescue {}
+    
+    provider, video_id = case host
+    when 'blip.tv'
+      match = location.path.match(BLIP_MATCH)
+      match ? ['blip', match[1]] : ['blip', nil]
+    when 'youtube.com'
+      ['youtube', query['v'].to_s]
+    when 'www.youtube.com'
+      ['youtube', query['v'].to_s]
+    else
+      [nil, '']
+    end
+    
+    {:video_id => video_id, :time => 0, :provider => provider}
+  end
 end
 
 dbconfig = YAML.load(File.read('config/database.yml'))
@@ -129,8 +150,11 @@ class WebSocketApp < Rack::WebSocket::Application
         
         # Get current video
         if channel.current_video
-          puts "VIDEO? #{channel.current_video.url}"
-          send_message({'type' => 'video', 'url' => channel.current_video.url, 'time' => channel.current_time})
+          puts "VIDEO? #{channel.current_video.url} #{channel.current_video.provider}"
+          send_message({'type' => 'video',
+                        'url' => channel.current_video.url,
+                        'provider' => channel.current_video.provider,
+                        'time' => channel.current_time})
         end
       end
     when 'unsubscribe'
@@ -142,26 +166,26 @@ class WebSocketApp < Rack::WebSocket::Application
     when 'video'
       return if @current_user.nil?
       # Only the owner of the channel can set the video
-      location = URI.parse(message['url']) rescue nil
-      video_id = if location
-        CGI.parse(location.query)['v'].to_s
-      end
+      video_info = Video.get_playback_info(message['url'])
       
       subscribers = SUBSCRIPTIONS[message['channel_id']]
-      if video_id && subscribers
+      if video_info[:provider] && !video_info[:video_id].empty? && subscribers
         channel = Channel.find_by_id(message['channel_id'])
         if channel.user == @current_user
           # Update channel video
           video = if channel.current_video.nil?
-            channel.videos.build(:url => video_id)
+            channel.videos.build(:url => video_info[:video_id], :provider => video_info[:provider])
           else
-            channel.current_video.update_attributes(:url => video_id)
+            channel.current_video.update_attributes(:url => video_info[:video_id], :provider => video_info[:provider])
             channel.current_video
           end
           channel.update_active_video!(video, message['time']||0, now)
           # Tell everyone
           subscribers.each do |subscriber|
-            subscriber.send_message({'type' => 'video', 'url' => video_id, 'time' => message['time']||0})
+            subscriber.send_message({'type' => 'video',
+                                     'provider' => video_info[:provider],
+                                     'url' => video_info[:video_id],
+                                     'time' => message['time']||0})
           end
         end
       end
@@ -176,7 +200,7 @@ class WebSocketApp < Rack::WebSocket::Application
           current_time = channel.current_time(now)
           if (current_time - message['time'] < -1.0) or (current_time - message['time'] > 1.0)
             puts "ADJUSTING CHANNEL TIME: #{message['time']} vs #{current_time} / #{channel.current_time(now)} #{current_time - message['time']}"
-            puts channel.delta_start_time!(message['time'], now)
+            channel.delta_start_time!(message['time'], now)
           end
           # Tell everyone the current time
           subscribers.each do |subscriber|
