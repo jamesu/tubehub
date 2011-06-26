@@ -150,11 +150,13 @@ class SubscriberList
   end
   
   def subscribe(connection, channel)
+    permission_scope = (connection.current_user and (connection.current_user.id == channel.user_id)) ? ['admin'] : []
     @list[channel.id] ||= []
-    @list[channel.id].each{|socket| socket.send_message({'type' => 'userjoined', 'user_id' => connection.user_id, 'nickname' => connection.user_name})}
+    @list[channel.id].each{|socket| socket.send_message({'type' => 'userjoined', 'user_id' => connection.user_id, 'user' => connection.user_name, 'scope' => permission_scope})}
     @list[channel.id] << connection
-    user_scope = (connection.current_user and connection.current_user.id == channel.user_id) ? ['admin'] : []
-    connection.send_message({'type' => 'userjoined', 'user' => connection.user_id, 'scope' => user_scope})
+    @list[channel.id].each do |socket|
+      connection.send_message({'type' => 'userjoined', 'user_id' => socket.user_id, 'user' => socket.user_name, 'scope' => (socket.current_user and (socket.current_user.id == channel.user_id)) ? ['admin'] : []})
+    end
   end
   
   def unsubscribe(connection, channel=nil)
@@ -221,19 +223,20 @@ class WebSocketApp < Rack::WebSocket::Application
         send_message({'type' => 'hello', 'nickname' => user_name, 'user_id' => user_id})
       end
     when 'message'
-      if subscriptions.connection_in_channel_id?(self, message['channel_id'])
+      if SUBSCRIPTIONS.connection_in_channel_id?(self, message['channel_id'])
         SUBSCRIPTIONS.send_message(message['channel_id'], {
           'type' => 'message',
           'user_id' => user_id,
           'content' => message['content']
         })
       end
-    when 'change_name'
-      if @current_user.nil?
-        @current_name = message['nickname']
-        SUBSCRIPTIONS.send_message(channel.id, {'type' => 'change_name',
-                                                'nickname' => user_name,
-                                                'user_id' => user_id})
+    when 'changename'
+      new_name = (message['nickname']||'').strip
+      if @current_user.nil? and !new_name.empty? and new_name != user_name
+        @current_name = new_name
+        SUBSCRIPTIONS.send_message(message['channel_id'], {'type' => 'changename',
+                                                           'user' => user_name,
+                                                           'user_id' => user_id})
       end
     when 'subscribe'
       channel = Channel.find_by_id(message['channel_id'])

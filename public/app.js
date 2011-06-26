@@ -2,7 +2,8 @@
     Tube = {
         video: null,
         admin: false,
-        provider: null
+        provider: null,
+        userList: {}
     };
 
     // Youtube code
@@ -16,6 +17,7 @@
         this.startTime = 0;
         this.timeCheckInterval = null;
         this.timeMargin = 1.0;
+        this.force = false;
     };
     YoutubeHandler.prototype.onReady = function() {
         this.control = document.getElementById("video");
@@ -26,14 +28,16 @@
             this.videoId = this.nextVideoId;
         } else {
             this.videoUrl = this.control.getVideoUrl();
-            console.log('READY:', this.videoUrl);
-            this.control.playVideo();
+            if (this.startTime > 0)
+              this.control.seekTo(this.startTime, true)
+            else
+              this.control.playVideo();
         }
 
         // Listen for changes if we are controlling
         if (Tube.admin) {
-            this.control.addEventListener("onStateChange", 'OnYoutubeStateChange');
-            this.control.addEventListener("onError", 'OnYoutubeError');
+            this.control.addEventListener("onStateChange", 'HandleYouTubeStateChange');
+            this.control.addEventListener("onError", 'HandleYouTubeError');
         }
     };
     YoutubeHandler.prototype.play = function() {
@@ -64,7 +68,9 @@
             return 0;
         }
     };
-    YoutubeHandler.prototype.setVideo = function(id, startTime) {
+    YoutubeHandler.prototype.setVideo = function(id, startTime, force) {
+        this.force = force;
+        this.startTime = startTime;
         if (!this.loadedControl) {
             // Make the damn control
             var params = {
@@ -89,16 +95,19 @@
         }
     };
     YoutubeHandler.prototype.onStateChange = function(newState) {
+	    console.log('STATE CHANGE', newState);
         if (newState == 1) {
             // Playing
-            if (this.control.getVideoUrl() != this.videoUrl) {
+            console.log('PLAYING: ', this.control.getVideoUrl(), this.videoUrl);
+            if (this.force || (this.control.getVideoUrl() != this.videoUrl)) {
                 Tube.onNewVideo(this.control.getVideoUrl());
                 this.videoUrl = this.control.getVideoUrl();
+                this.force = false;
             }
             var self = this;
             if (!this.timeCheckInterval) {
                 Tube.timeCheckInterval = setInterval(function() {
-                    Tube.onTimeChange(this.control.getCurrentTime());
+                    Tube.onTimeChange(self.control.getCurrentTime());
                 }, 2000);
             }
         } else if (newState == 0) {
@@ -156,9 +165,9 @@
             return 0;
         }
     };
-    BlipHandler.prototype.setVideo = function(id, startTime) {
-	    console.log('set blip video to', id, startTime)
-        if (this.videoId != id) {
+    BlipHandler.prototype.setVideo = function(id, startTime, force) {
+	    this.force = force;
+        if (this.videoId != id || this.force) {
             // Doesn't seem to be any way of setting the url, so recreate the control
             this.videoUrl = "http://blip.tv/play/" + id;
             this.waitLoading = true;
@@ -177,6 +186,7 @@
             };
             swfobject.embedSWF(this.videoUrl, "video", "425", "356", "8", null, null, params, attrs);
         }
+        this.force = false;
     };
     BlipHandler.prototype.onTimeChange = function(newTime) {
         // Dispatch video time if we're an admin
@@ -221,7 +231,7 @@
             this.video.seek(newTime);
         }
     };
-    Tube.setVideo = function(id, startTime, provider) {
+    Tube.setVideo = function(id, startTime, provider, force) {
         if (this.video == null || this.video.provider != provider) {
             if (this.video) {
                 this.video.stop();
@@ -237,7 +247,7 @@
                 return;
             }
         }
-        this.video.setVideo(id, startTime);
+        this.video.setVideo(id, startTime, force);
     };
     Tube.onTimeChange = function(newTime) {
         Tube.socket.sendJSON({
@@ -254,21 +264,49 @@
 
         Tube.socket = new WebSocket("ws://" + document.location.host + "/ws");
         Tube.socket.sendJSON = function(data) {
-            this.send(JSON.stringify(data));
+            Tube.socket.send(JSON.stringify(data));
+        };
+        Tube.socket.sendMessage = function(content) {
+            Tube.socket.sendJSON({'type': 'message', 'channel_id': Tube.current_channel, 'content': content});
         };
         Tube.socket.onmessage = function(evt) {
             var message = JSON.parse(evt.data);
-            $("#messages").append("<p>" + evt.data + "</p>");
+            //$("#debug").append("<p>" + evt.data + "</p>");
 
             if (message.type == 'hello') {
-                this.onauthenticated(message);
+                Tube.socket.onauthenticated(message);
             } else if (message.type == 'userjoined') {
-                if (Tube.user == message.user) {
+                if (Tube.user_id == message.user_id) {
                     Tube.admin = (message['scope'] || []).indexOf('admin') >= 0;
                 }
+                var el;
+                if (message.user_id.indexOf('anon_') == 0) {
+                  el = $('#userlist').append("<li id='user_" + message.user_id + "'></li>").children().last();
+	              el.text(message.user);
+                } else {
+                  el = $('#userlist').append("<li id='user_" + message.user_id + "'><strong></strong></li>").children().last();
+                  el.children('strong').text(message.user);
+                }
+                Tube.userList[message.user_id] = {'name': message.user, 'scope': message['scope']||[]};
+            } else if (message.type == 'userleft') {
+                $('#user_' + message.user_id).remove();
+                delete Tube.userList[message.user_id];
+            } else if (message.type == 'changename') {
+                var oldName = Tube.userList[message.user_id].name;
+                Tube.userList[message.user_id].name = message.user;
+                $('#user_' + message.user_id).text(message.user);
+                var el = $('#messages').append('<div><strong class="u1"></strong> is now known as <strong class="u2"></strong>').children().last();
+                el.children('.u1').text(oldName);
+                el.children('.u2').text(message.user);
+            } else if (message.type == 'message') {
+                var el = $('#messages').append("<div><strong></strong><div></div></div>").children().last();
+                el.children('div').text(message.content);
+                el.children('strong').text(Tube.userList[message.user_id].name + ':');
+                var messages = document.getElementById('messages');
+                messages.scrollTop = messages.scrollHeight;
             } else if (message.type == 'video') {
                 if (!Tube.admin || Tube.video == null || message.force) {
-                    Tube.setVideo(message.url, message.time, message.provider);
+                    Tube.setVideo(message.url, message.time, message.provider, false);
                 }
             } else if (message.type == 'video_time') {
                 // Set the time of the video, ignoring minor offsets
@@ -283,9 +321,10 @@
         };
         Tube.socket.onclose = function() {
             $('#status').html('Closed');
+            $('#userlist').update('');
+            Tube.userList = {};
         };
         Tube.socket.onopen = function() {
-            var self = this;
             Tube.admin = false;
             $('#status').html('Connected');
 
@@ -293,20 +332,21 @@
                 type: 'POST',
                 url: '/auth/socket_token',
                 success: function(data) {
-                    self.sendJSON({
+                    Tube.socket.sendJSON({
                         'type': 'auth',
                         'auth_token': data.auth_token
                     });
                 },
                 error: function(xhr, status, error) {
                     console.log('BARF', status, error);
-                    self.close();
+                    Tube.socket.close();
                 }
             });
         };
         Tube.socket.onauthenticated = function(message) {
-            Tube.user = message.user;
-            this.sendJSON({
+            Tube.user_id = message.user_id;
+            Tube.user = message.nickname;
+            Tube.socket.sendJSON({
                 'type': 'subscribe',
                 'channel_id': Tube.current_channel
             });
@@ -346,4 +386,16 @@ $(document).ready(function() {
     return;
 
     Tube.connect();
+    $('#messageEntryBox').keypress(function(evt){
+      if (evt.keyCode == 13) {
+        if (evt.target.value.indexOf('/nick') == 0) {
+          var newName = evt.target.value.split(' ')[1];
+          if (newName)
+            Tube.socket.sendJSON({'type': 'changename', 'nickname': newName, 'channel_id': Tube.current_channel});
+        } else {
+          Tube.socket.sendMessage(evt.target.value);
+        }
+        evt.target.value = '';
+      }
+    })
 });
