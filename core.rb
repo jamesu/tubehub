@@ -69,15 +69,14 @@ class Channel < ActiveRecord::Base
   end
   
   # Set new video from supplied info
-  def set_current_video_from_info(video_info, time=nil, from=Time.now.utc)
-    channel.current_video = if channel.current_video.nil?
-      channel.videos.build(:url => video_info[:video_id], :provider => video_info[:provider])
+  def set_current_video_from_info(video_info, new_time=nil, from=Time.now.utc)
+    self.current_video = if self.current_video.nil?
+      self.videos.build(:url => video_info[:video_id], :provider => video_info[:provider])
     else
-      channel.current_video.update_attributes(:url => video_info[:video_id], :provider => video_info[:provider])
-      channel.current_video
+      self.current_video.update_attributes(:url => video_info[:video_id], :provider => video_info[:provider])
+      self.current_video
     end
-    channel.current_time = time || video_info[:time] || 0
-    self.start_time = from - new_time
+    self.start_time = from - (new_time||0)
   end
 end
 
@@ -115,8 +114,64 @@ ActiveRecord::Base.establish_connection dbconfig['development']
 
 JSON.create_id = nil
 
-# Big nasty shared subscriptions hash
-SUBSCRIPTIONS = {}
+# Big nasty shared subscriptions list
+
+class SubscriberList
+  def initialize
+    @list = {}
+  end
+  
+  def send_message(destination, message)
+    if destination.respond_to?(:each)
+      destination.each do |channel|
+        send_message(channel, message)
+      end
+    else
+      channel_id = if destination.class == Channel
+        destination.id
+      else
+        destination
+      end
+    end
+    
+    return if @list[channel_id].nil?
+    puts "SENDING MESSAGE TO: #{@list[channel_id].map(&:object_id).join(',')}"
+    @list[channel_id].each do |subscriber|
+      subscriber.send_message(message)
+    end
+  end
+  
+  def has_channel_id?(channel)
+    @list.has_key?(channel)
+  end
+  
+  def connection_in_channel_id?(connection, channel)
+    @list[channel] && @list[channel].include?(connection)
+  end
+  
+  def subscribe(connection, channel)
+    @list[channel.id] ||= []
+    @list[channel.id].each{|socket| socket.send_message({'type' => 'userjoined', 'user_id' => connection.user_id, 'nickname' => connection.user_name})}
+    @list[channel.id] << connection
+    user_scope = (connection.current_user and connection.current_user.id == channel.user_id) ? ['admin'] : []
+    connection.send_message({'type' => 'userjoined', 'user' => connection.user_id, 'scope' => user_scope})
+  end
+  
+  def unsubscribe(connection, channel=nil)
+    if !channel.nil?
+      @list[channel.id].delete(connection)
+    else
+      @list.each do |subscriber_channel, users|
+        if users.include?(connection)
+          users.delete(connection)
+          users.each{|socket| socket.send_message({'type' => 'userleft', 'user_id' => connection.user_id})}
+        end
+      end
+    end
+  end
+end
+
+SUBSCRIPTIONS = SubscriberList.new
 
 class WebSocketApp < Rack::WebSocket::Application
   
@@ -132,13 +187,24 @@ class WebSocketApp < Rack::WebSocket::Application
     begin
       process_message(env, data)
     rescue Exception => e
-      puts "EXCEPTION: #{e.inspect}"
+      puts "EXCEPTION: #{e.inspect}\n#{e.backtrace.join("\n")}"
     end
+  end
+  
+  def user_id
+    @current_user ? "user_#{@current_user.id}" : "anon_#{object_id}"
+  end
+  
+  def user_name
+    @current_user ? @current_user.name : @current_name
+  end
+  
+  def current_user
+    @current_user
   end
   
   def process_message(env, data)
     message = JSON.parse(data) rescue {}
-    user_id = @current_user ? @current_user.name : 'Anonymous'
     puts "#{user_id}: #{message.inspect}"
     now = Time.now.utc
     
@@ -148,20 +214,32 @@ class WebSocketApp < Rack::WebSocket::Application
       if user && user.auth_token?
         puts "OPEN user == #{user.inspect}"
         @current_user = user
-        send_message({'type' => 'hello', 'user' => @current_user.name})
+        send_message({'type' => 'hello', 'nickname' => user_name, 'user_id' => user_id})
         @current_user.update_attribute(:auth_token, nil)
       else
-        send_message({'type' => 'hello', 'user' => 'Anonymous'})
+        @current_name = message['nickname']||'Anonymous'
+        send_message({'type' => 'hello', 'nickname' => user_name, 'user_id' => user_id})
+      end
+    when 'message'
+      if subscriptions.connection_in_channel_id?(self, message['channel_id'])
+        SUBSCRIPTIONS.send_message(message['channel_id'], {
+          'type' => 'message',
+          'user_id' => user_id,
+          'content' => message['content']
+        })
+      end
+    when 'change_name'
+      if @current_user.nil?
+        @current_name = message['nickname']
+        SUBSCRIPTIONS.send_message(channel.id, {'type' => 'change_name',
+                                                'nickname' => user_name,
+                                                'user_id' => user_id})
       end
     when 'subscribe'
       channel = Channel.find_by_id(message['channel_id'])
       if channel
         puts "SUBSCRIBING TO CHANNEL #{channel.name}"
-        SUBSCRIPTIONS[channel.id] ||= []
-        SUBSCRIPTIONS[channel.id].each{|socket| socket.send_message({'type' => 'userjoined', 'user' => user_id})}
-        SUBSCRIPTIONS[channel.id] << self
-        user_scope = (@current_user and @current_user.id == channel.user_id) ? ['admin'] : []
-        send_message({'type' => 'userjoined', 'user' => user_id, 'scope' => user_scope})
+        SUBSCRIPTIONS.subscribe(self, channel)
         
         # Get current video
         if channel.current_video
@@ -175,17 +253,13 @@ class WebSocketApp < Rack::WebSocket::Application
       end
     when 'unsubscribe'
       channel = Channel.find_by_id(message['channel_id'])
-      if channel && SUBSCRIPTIONS[channel.id]
-        SUBSCRIPTIONS[channel.id].each{|socket| socket.send_message({'type' => 'userleft', 'user' => user_id})}
-        SUBSCRIPTIONS[channel.id].delete(self)
-      end
+      SUBSCRIPTIONS.unsubscribe(self, channel) if channel
     when 'video'
       return if @current_user.nil?
       # Only the owner of the channel can set the video
       video_info = Video.get_playback_info(message['url'])
       
-      subscribers = SUBSCRIPTIONS[message['channel_id']]
-      if video_info[:provider] && !video_info[:video_id].empty? && subscribers
+      if video_info[:provider] && !video_info[:video_id].empty? && SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
         channel = Channel.find_by_id(message['channel_id'])
         if channel.user == @current_user
           # Update channel video
@@ -193,21 +267,17 @@ class WebSocketApp < Rack::WebSocket::Application
           channel.save
           
           # Tell everyone
-          subscribers.each do |subscriber|
-            subscriber.send_message({'type' => 'video',
-                                     'provider' => video_info[:provider],
-                                     'url' => video_info[:video_id],
-                                     'time' => message['time']||0})
-          end
+          SUBSCRIPTIONS.send_message(channel.id, {'type' => 'video',
+                                                  'provider' => video_info[:provider],
+                                                  'url' => video_info[:video_id],
+                                                  'time' => channel.current_time})
         end
       end
     when 'video_time'
       return if @current_user.nil?
-      subscribers = SUBSCRIPTIONS[message['channel_id']]
-      if subscribers
-        puts "SENDING TO: #{SUBSCRIPTIONS[message['channel_id']].map(&:object_id).join(',')}"
-        channel = Channel.find_by_id(message['channel_id'])
-        if !message['time'].nil? and channel.user == @current_user
+      channel = Channel.find_by_id(message['channel_id'])
+      if channel && SUBSCRIPTIONS.has_channel_id?(channel.id)
+        if !message['time'].nil? and channel.user_id == @current_user.id
           # Adjust channel model time if delta is too large
           current_time = channel.current_time(now)
           if (current_time - message['time'] < -1.0) or (current_time - message['time'] > 1.0)
@@ -215,24 +285,15 @@ class WebSocketApp < Rack::WebSocket::Application
             channel.delta_start_time!(message['time'], now)
           end
           # Tell everyone the current time
-          subscribers.each do |subscriber|
-            subscriber.send_message({'type' => 'video_time', 'time' => message['time']})
-          end
+          SUBSCRIPTIONS.send_message(channel.id, {'type' => 'video_time', 'time' => message['time']})
         end
       end
     end
   end
   
   def on_close(env)
-    user_id = @current_user ? @current_user.name : 'Anonymous'
     puts "CLOSE #{user_id}"
-    # Unsubscribe from all channels
-    SUBSCRIPTIONS.each do |channel, users|
-      if users.include?(self)
-        users.delete(self)
-        users.each{|socket| socket.send_message({'type' => 'userleft', 'user' => user_id})}
-      end
-    end
+    SUBSCRIPTIONS.unsubscribe(self)
   end
 end
 
@@ -316,6 +377,35 @@ class App < Sinatra::Base
     else
       {:error => 'UnknownChannel'}
     end.to_json
+  end
+  
+  # Add video to playlist
+  post '/video' do
+    login_required
+    content_type :json
+    channel = Channel.find_by_id(params[:channel_id])
+    
+    if channel.user == current_user
+      channel.add_video(params[:video_info])
+    end
+  end
+  
+  # Remove video
+  delete '/video' do
+    login_required
+    content_type :json
+    channel = Channel.find_by_id(params[:channel_id])
+    
+    if channel.user == current_user
+      video = channel.videos.find_by_id(params[:id])
+      if video 
+        video.destroy
+      end
+    end
+  end
+  
+  # Update channel info
+  put '/channel' do
   end
   
   # Token for socket identification
