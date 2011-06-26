@@ -56,14 +56,28 @@ class Channel < ActiveRecord::Base
     save
   end
   
+  # Current time based upon channel start time
   def current_time(from=Time.now.utc)
     start_time ? from - start_time : 0
   end
   
+  # Set new video from playlist
   def update_active_video!(the_video, new_time=0, from=Time.now.utc)
     self.current_video = the_video
     self.start_time = from - new_time
     save
+  end
+  
+  # Set new video from supplied info
+  def set_current_video_from_info(video_info, time=nil, from=Time.now.utc)
+    channel.current_video = if channel.current_video.nil?
+      channel.videos.build(:url => video_info[:video_id], :provider => video_info[:provider])
+    else
+      channel.current_video.update_attributes(:url => video_info[:video_id], :provider => video_info[:provider])
+      channel.current_video
+    end
+    channel.current_time = time || video_info[:time] || 0
+    self.start_time = from - new_time
   end
 end
 
@@ -101,6 +115,7 @@ ActiveRecord::Base.establish_connection dbconfig['development']
 
 JSON.create_id = nil
 
+# Big nasty shared subscriptions hash
 SUBSCRIPTIONS = {}
 
 class WebSocketApp < Rack::WebSocket::Application
@@ -154,7 +169,8 @@ class WebSocketApp < Rack::WebSocket::Application
           send_message({'type' => 'video',
                         'url' => channel.current_video.url,
                         'provider' => channel.current_video.provider,
-                        'time' => channel.current_time})
+                        'time' => channel.current_time,
+                        'force' => true})
         end
       end
     when 'unsubscribe'
@@ -173,13 +189,9 @@ class WebSocketApp < Rack::WebSocket::Application
         channel = Channel.find_by_id(message['channel_id'])
         if channel.user == @current_user
           # Update channel video
-          video = if channel.current_video.nil?
-            channel.videos.build(:url => video_info[:video_id], :provider => video_info[:provider])
-          else
-            channel.current_video.update_attributes(:url => video_info[:video_id], :provider => video_info[:provider])
-            channel.current_video
-          end
-          channel.update_active_video!(video, message['time']||0, now)
+          channel.set_current_video_from_info(video_info, message['time'], now)
+          channel.save
+          
           # Tell everyone
           subscribers.each do |subscriber|
             subscriber.send_message({'type' => 'video',
@@ -212,17 +224,21 @@ class WebSocketApp < Rack::WebSocket::Application
   end
   
   def on_close(env)
-    puts "CLOSE"
+    user_id = @current_user ? @current_user.name : 'Anonymous'
+    puts "CLOSE #{user_id}"
+    # Unsubscribe from all channels
+    SUBSCRIPTIONS.each do |channel, users|
+      if users.include?(self)
+        users.delete(self)
+        users.each{|socket| socket.send_message({'type' => 'userleft', 'user' => user_id})}
+      end
+    end
   end
 end
 
 class App < Sinatra::Base
   set :public, File.dirname(__FILE__) + '/public'
   set :static, true
-
-  def initialize(app=nil)
-    super(app)
-  end
 
   def current_user
     @current_user ||= User.find_by_id(session[:user_id]) if session[:user_id]
@@ -260,6 +276,49 @@ class App < Sinatra::Base
     end
   end
   
+  # Force set a video
+  post '/set_video' do
+    login_required
+    content_type :json
+    channel = Channel.find_by_id(params[:channel_id])
+    if channel
+      if channel.user == current_user
+        # Determine what we want to play
+        video_info = if params[:video_id] && params[:provider]
+          {:video_id => params[:video_id], :provider => params[:provider], :time => params[:time].to_i}
+        elsif params[:url]
+          Video.get_playback_info(params[:url])
+        else
+          {:video_id => '', :provider => nil}
+        end
+        
+        if video_info[:video_id].nil? or video_info[:provider].empty?
+          {:error => 'UnknownVideo'}
+        else
+          # Update channel video
+          channel.set_current_video_from_info(video_info, params[:time].to_i, Time.now)
+          channel.save
+          current_time = channel.current_video.current_time
+          
+          # Tell everyone
+          subscribers.each do |subscriber|
+            subscriber.send_message({'type' => 'video',
+                                     'provider' => channel.current_video.provider,
+                                     'url' => channel.current_video.url,
+                                     'time' => current_time,
+                                     'force' => true})
+          end
+          {:video_id => channel.current_video.url, :provider => channel.current_video.provider, :time => current_time}
+        end
+      else
+        {:error => 'InsufficientPermissions'}
+      end
+    else
+      {:error => 'UnknownChannel'}
+    end.to_json
+  end
+  
+  # Token for socket identification
   post '/auth/socket_token' do
     login_required
     current_user.generate_auth_token!
