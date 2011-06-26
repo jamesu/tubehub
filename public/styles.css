@@ -1,0 +1,438 @@
+
+
+html, body, div, span, object, iframe,
+h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+a, abbr, acronym, address, code,
+del, dfn, em, img, q, dl, dt, dd, ol, ul, li,
+fieldset, form, label, legend,
+table, caption, tbody, tfoot, thead, tr, th, td {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-weight: inherit;
+  font-style: inherit;
+  font-size: 100%;
+  font-family: inherit;
+  vertical-align: baseline;
+}
+
+
+
+body {
+  line-height: 1.5;
+}
+
+
+
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+
+
+caption, th, td {
+  text-align: left;
+  font-weight: normal;
+}
+
+
+
+table, td, th {
+  vertical-align: middle;
+}
+
+
+
+blockquote:before, blockquote:after, q:before, q:after {
+  content: "";
+}
+
+
+
+blockquote, q {
+  quotes: "" "";
+}
+
+
+
+a img {
+  border: none;
+}
+
+
+a {
+  color: black;
+}
+
+
+a:visited {
+  color: #666666;
+}
+
+
+a:hover {
+  color: white;
+  background-color: black;
+}
+
+
+h1 {
+  font-size: 28px;
+  font-weight: bolder;
+  padding-bottom: 6px;
+}
+
+
+h2 {
+  font-size: 18px;
+  font-weight: bolder;
+  padding-bottom: 6px;
+}
+
+
+h3 {
+  font-size: 16px;
+  font-weight: bolder;
+  padding-bottom: 6px;
+}
+
+
+body {
+  margin: 0px;
+  padding: 0px;
+  background-color: #eeeeee;
+  color: black;
+}
+
+
+label {
+  display: block;
+}
+
+
+input.checkbox {
+  padding: 0px;
+  margin: 2px;
+}
+
+
+label.checkbox {
+  clear: none;
+  display: inline;
+}
+
+
+p.desc {
+  color: #555555;
+}
+
+
+ul, ol {
+  padding-left: 28px;
+}
+
+
+pre {
+  overflow: auto;
+  background-color: #eeeeee;
+  padding: 10px;
+  font-size: 11px;
+}
+
+
+body, p, ol, ul, td {
+  font-family: lucida grande, verdana, arial, helvetica, sans-serif;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+
+form div {
+  margin-bottom: 3px;
+}
+
+
+#header {
+  margin: 0pt auto;
+  width: 800px;
+}
+
+
+#headerInner {
+  padding: 0px 6px 0px 6px;
+  text-align: left;
+  background: #007700;
+}
+
+
+#outerWrapper {
+  margin: 0pt auto;
+  width: 800px;
+}
+
+
+#innerWrapper {
+  text-align: left;
+  padding: 0px 2px 18px 2px;
+}
+
+
+#pageContent {
+  margin-top: 12px;
+}
+
+
+#innerContent {
+  padding: 18px 16px 18px 16px;
+}
+
+
+#footer {
+  margin: 0pt auto;
+  width: 800px;
+}
+
+
+#tabsWrapper {
+  margin: 0pt auto;
+  text-align: left;
+  padding: 12px 6px 0px 6px;
+}
+
+#tabsWrapper ul {
+  list-style-image: none;
+  list-style-position: outside;
+  list-style-type: none;
+  margin: 0pt;
+  padding: 0 12px;
+}
+
+#tabsWrapper ul li {
+  float: left;
+  margin: 0pt 1px;
+}
+
+#tabsWrapper ul li a {
+  display: block;
+  font-size: 12px;
+  font-weight: bold;
+  text-align: center;
+  padding: 2px 12px;
+  color: white;
+}
+
+#tabsWrapper ul li a.active {
+  background: #eeeeee;
+  text-decoration: none;
+  color: black;
+}
+
+
+#content {
+  float: left;
+  width: 760px;
+  padding: 10px;
+  background: white;
+  border-right: 2px solid #bbbbbb;
+  border-bottom: 2px solid #bbbbbb;
+  margin: 0px;
+}
+
+
+#sidebar {
+  width: 190px;
+  float: right;
+  margin: 0px;
+}
+
+
+.sidebarBlock {
+  padding-bottom: 3px;
+  margin: 6px 0px 6px 0px;
+}
+
+
+.newPage {
+  font-weight: bold;
+  font-size: 16px;
+  text-decoration: none;
+}
+
+
+#wrapper {
+  text-align: center;
+}
+
+
+input.long, textarea.long {
+  width: 99%;
+}
+
+
+input.moderate, textarea.moderate {
+  width: 70%;
+}
+
+
+.floatleft {
+  float: left;
+}
+
+
+.clear {
+  clear: both;
+}
+
+label {
+  font-weight: bolder;
+}
+
+
+label.yesno {
+  display: inline;
+}
+
+
+label.check {
+  font-weight: normal;
+  display: inline;
+}
+
+
+.formSubmit {
+  margin-top: 12px;
+}
+
+
+.hint {
+  background-color: #ffffcc;
+  border: 2px solid #e9be31;
+  margin: 0 0 5px 0;
+  padding: 5px;
+}
+
+.hint .header {
+  font-weight: bold;
+  font-size: 14px;
+  margin-bottom: 3px;
+  border-bottom: 1px solid #e9be31;
+}
+
+
+#statusBar {
+  display: none;
+}
+
+
+#statusBar.success, .flash.error, .flash.success {
+  margin: 10px 0;
+  padding: 5px 10px;
+  border: 1px solid #cccccc;
+  clear: both;
+  cursor: pointer;
+  text-align: left;
+}
+
+
+.flash.error {
+  background: #ffb0b0;
+  border-color: red;
+}
+
+
+#statusBar.success, .flash.success {
+  background: #90dc90;
+  border-color: green;
+}
+
+
+.statusBarContainer {
+  padding-bottom: 10px;
+}
+
+
+.fieldWithErrors {
+  padding: 2px;
+  background-color: red;
+  display: table;
+}
+
+
+#errorExplanation {
+  width: 400px;
+  border: 2px solid red;
+  padding: 7px;
+  padding-bottom: 12px;
+  margin-bottom: 20px;
+  background-color: #f0f0f0;
+}
+
+
+#errorExplanation h2 {
+  text-align: left;
+  font-weight: bold;
+  padding: 5px 5px 5px 15px;
+  font-size: 12px;
+  margin: -7px;
+  background-color: #cc0000;
+  color: white;
+}
+
+
+#errorExplanation p {
+  color: #333333;
+  margin-bottom: 0;
+  padding: 5px;
+}
+
+
+#errorExplanation ul li {
+  font-size: 12px;
+  list-style: square;
+}
+
+
+#header .topCrumbs {
+  text-align: right;
+  background-color: black;
+  color: white;
+  margin-left: -6px;
+  margin-right: -6px;
+  padding: 3px 2px;
+}
+
+
+#header .topCrumbs a, #header .topCrumbs a:visited {
+  color: white;
+  text-decoration: none;
+}
+
+
+#header .topCrumbs a.active {
+  color: #f9c900;
+  font-weight: bold;
+}
+
+
+#userlist {
+	width: 200px;
+	float: right;
+	list-style-image: none;
+	list-style-position: outside;
+	list-style-type: none;
+}
+
+#messageEntryBox {
+	width: 460px;
+}
+
+#messages {
+	height: 200px;
+	overflow-y: scroll;
+}
+
+#chatInner {
+	float: left;
+	width:500px;
+}
