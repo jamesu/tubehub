@@ -114,6 +114,7 @@ class Channel < ActiveRecord::Base
   # Plays video info, grabs metadata later
   def quickplay_video(video_info, from=Time.now.utc)
     video = if current_video and !current_video.playlist
+      @video_changed = video_info[:video_id] != current_video.url
       current_video
     else
       videos.build({:playlist => false})
@@ -128,11 +129,12 @@ class Channel < ActiveRecord::Base
     new_time = video_info[:time]||0
     self.current_video = video if video_saved
     self.start_time = from - new_time
+    save
   end
   
   def set_update_info
-    @video_changed = current_video_id_changed?
-    @time_changed = start_time_changed?
+    @video_changed ||= current_video_id_changed?
+    @time_changed ||= start_time_changed?
     true
   end
   

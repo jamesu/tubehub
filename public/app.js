@@ -99,11 +99,11 @@
         if (newState == 1) {
             // Playing
             //console.log('PLAYING: ', this.control.getVideoUrl(), this.videoUrl);
-            if (this.force || (this.control.getVideoUrl() != this.videoUrl)) {
+            if (!this.force && (this.control.getVideoUrl() != this.videoUrl)) {
                 Tube.onNewVideo(this.control.getVideoUrl());
-                this.videoUrl = this.control.getVideoUrl();
-                this.force = false;
             }
+            this.force = false;
+            this.videoUrl = this.control.getVideoUrl();
             var self = this;
             if (!this.timeCheckInterval) {
                 Tube.timeCheckInterval = setInterval(function() {
@@ -346,7 +346,7 @@
                 Tube.removePlaylistItem(message);
             } else if (message.type == 'video') {
                 if (!Tube.admin || Tube.video == null || message.force) {
-                    Tube.setVideo(message.url, message.time, message.provider, false);
+                    Tube.setVideo(message.url, message.time, message.provider, message.force);
                 }
             } else if (message.type == 'video_time') {
                 // Set the time of the video, ignoring minor offsets
