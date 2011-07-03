@@ -436,3 +436,44 @@ label.check {
 	float: left;
 	width:500px;
 }
+
+#videoContainer {
+	float: left;
+	width: 425px;
+}
+
+#playlistContainer {
+	float: right;
+	width: 280px;
+	height: 340px;
+	border: 2px solid #ccc;
+}
+
+#playlist {
+	height: 310px;
+	overflow-y: scroll;
+}
+
+#playlistEntry {
+	height: 30px;
+}
+
+#playlist .item {
+	border-bottom: 1px solid #afafaf;
+	background-color: #eeeeee;
+	color: #000000;
+	font-weight: bold;
+}
+
+#playlist .item .title {
+	cursor: pointer;
+}
+
+#playlist .item .delete {
+	float: right;
+	cursor: pointer;
+}
+
+#playlist .item .time {
+	font-weight: normal;
+}

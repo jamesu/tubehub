@@ -5,6 +5,8 @@ gem 'sqlite3'
 gem 'activesupport'
 gem 'activerecord'
 gem 'json'
+gem 'eventmachine'
+gem 'em-http-request'
 
 gem 'websocket-rack'
 

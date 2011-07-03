@@ -7,6 +7,7 @@ require 'sinatra/base'
 require 'rack/websocket'
 require 'uri'
 require 'cgi'
+require 'rexml/document'
 
 class User < ActiveRecord::Base
   before_validation :set_tokens
@@ -50,6 +51,9 @@ class Channel < ActiveRecord::Base
   belongs_to :current_video, :class_name => 'Video'
   has_many :videos
   
+  before_update :set_update_info
+  after_update :notify_updates
+  
   # Update to new time (e.g. when user has manipulated slider)
   def delta_start_time!(new_time, from=Time.now.utc)
     self.start_time = from - new_time
@@ -61,28 +65,96 @@ class Channel < ActiveRecord::Base
     start_time ? from - start_time : 0
   end
   
-  # Set new video from playlist
-  def update_active_video!(the_video, new_time=0, from=Time.now.utc)
-    self.current_video = the_video
-    self.start_time = from - new_time
+  # Go to next video in playlist
+  def next_video!
+    # Current video in playlist?
+    idx = videos.index(current_video)
+    if idx.nil? and !videos.empty?
+      self.current_video = videos.first
+      save
+    elsif !video_idx.nil?
+      idx += 1
+      idx = 0 if idx == videos.length
+      self.current_video = videos[idx]
+      save
+    else
+      false
+    end
+  end
+  
+  # Plays video in playlist
+  def play_item(new_video)
+    return if current_video == new_video
+    
+    if current_video and current_video.playlist == false
+      current_video.destroy
+    end
+    
+    @force_video = true
+    self.current_video = new_video
+    self.start_time = Time.now.utc
     save
   end
   
-  # Set new video from supplied info
-  def set_current_video_from_info(video_info, new_time=nil, from=Time.now.utc)
-    self.current_video = if self.current_video.nil?
-      self.videos.build(:url => video_info[:video_id], :provider => video_info[:provider])
+  # Adds video info, grabs metadata later
+  def add_video(video_info, from=Time.now.utc)
+    video = videos.build
+    
+    # Set attributes now
+    video.attributes = {:url => video_info[:video_id],
+                        :provider => video_info[:provider],
+                        :position => videos.count,
+                        :playlist => true}
+    video.save
+    
+    video.grab_metadata
+    video
+  end
+  
+  # Plays video info, grabs metadata later
+  def quickplay_video(video_info, from=Time.now.utc)
+    video = if current_video and !current_video.playlist
+      current_video
     else
-      self.current_video.update_attributes(:url => video_info[:video_id], :provider => video_info[:provider])
-      self.current_video
+      videos.build({:playlist => false})
     end
-    self.start_time = from - (new_time||0)
+    
+    # Set attributes now
+    video.attributes = {:url => video_info[:video_id], :provider => video_info[:provider]}
+    video_saved = video.save
+    
+    video.grab_metadata
+    
+    new_time = video_info[:time]||0
+    self.current_video = video if video_saved
+    self.start_time = from - new_time
+  end
+  
+  def set_update_info
+    @video_changed = current_video_id_changed?
+    @time_changed = start_time_changed?
+    true
+  end
+  
+  def notify_updates
+    if @video_changed
+      SUBSCRIPTIONS.send_message(id, current_video.to_info.merge({'type' => 'video', 'time' => current_time, 'force' => @force_video||false}))
+    elsif @time_changed
+      SUBSCRIPTIONS.send_message(id, {'type' => 'video_time', 'time' => current_time})
+    end
+    @video_changed = @time_changed = false
+    true
   end
 end
 
 class Video < ActiveRecord::Base
   belongs_to :channel
   belongs_to :user
+  
+  before_update :set_update_info
+  after_save :notify_updates
+  after_create :notify_updates
+  after_destroy :notify_destroy
   
   BLIP_MATCH = /\/play\/(.*)/
   def self.get_playback_info(url)
@@ -103,6 +175,70 @@ class Video < ActiveRecord::Base
     end
     
     {:video_id => video_id, :time => 0, :provider => provider}
+  end
+  
+  def grab_metadata
+    # Grab metadata from provider
+    case provider
+    when 'youtube'
+      grab_youtube_metadata
+    when 'blip'
+      grab_blip_metadata
+    end
+  end
+  
+  def grab_youtube_metadata
+    record = self
+    # GET http://gdata.youtube.com/feeds/api/videos/:id [entry/title]
+    EM::HttpRequest.new("http://gdata.youtube.com/feeds/api/videos/#{url}").get.callback do |http|
+      begin
+        xml = REXML::Document.new(http.response)
+        title = nil
+        duration = nil
+
+        xml.elements.each("entry/title") { |t| title = t.text }
+        xml.elements.each("entry/media:group/yt:duration") { |t| duration = t.attribute('seconds').value.to_f }
+
+        puts "VIDEO #{url}: TITLE=#{title}, DURATION=#{duration}"
+        unless title.nil? and duration.nil?
+          record.title = title
+          record.duration = duration
+          record.save!
+        end
+      rescue Object => e
+        puts "VIDEO #{url}: ERROR GETTING METADATA!!! #{e.inspect}\n#{e.backtrace}"
+      end
+    end
+  end
+  
+  def grab_blip_metadata
+    # GET GET http://blip.tv/file/:id?skin=rss [channel/item/title]
+  end
+  
+  def to_info
+    {'id' => id,
+     'url' => url,
+     'provider' => provider,
+     'title' => title,
+     'duration' => duration,
+     'playlist' => playlist,
+     'position' => position}
+  end
+  
+  def set_update_info
+    @playlist_changed = playlist_changed?
+    true
+  end
+  
+  def notify_updates
+    SUBSCRIPTIONS.send_message(channel_id, to_info.merge({'type' => 'playlist_video'}))
+    @playlist_changed = false
+    true
+  end
+  
+  def notify_destroy
+    SUBSCRIPTIONS.send_message(channel_id, {'type' => 'playlist_video_removed', 'id' => id})
+    true
   end
 end
 
@@ -247,11 +383,16 @@ class WebSocketApp < Rack::WebSocket::Application
         # Get current video
         if channel.current_video
           puts "VIDEO? #{channel.current_video.url} #{channel.current_video.provider}"
-          send_message({'type' => 'video',
-                        'url' => channel.current_video.url,
-                        'provider' => channel.current_video.provider,
+          send_message(channel.current_video.to_info.merge({
+                        'type' => 'video',
                         'time' => channel.current_time,
-                        'force' => true})
+                        'force' => true}))
+        end
+        
+        # Get current playlist
+        videos = channel.videos.order('position ASC')
+        unless videos.empty?
+          videos.each { |video| send_message(video.to_info.merge({'type' => 'playlist_video'})) }
         end
       end
     when 'unsubscribe'
@@ -260,20 +401,28 @@ class WebSocketApp < Rack::WebSocket::Application
     when 'video'
       return if @current_user.nil?
       # Only the owner of the channel can set the video
-      video_info = Video.get_playback_info(message['url'])
       
-      if video_info[:provider] && !video_info[:video_id].empty? && SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
+      # TWO OPTIONS:
+      # 1) Provide video id (in playlist)
+      # 2) Provide video url (grabs metadata later)
+      
+      if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
         channel = Channel.find_by_id(message['channel_id'])
         if channel.user == @current_user
-          # Update channel video
-          channel.set_current_video_from_info(video_info, message['time'], now)
-          channel.save
-          
-          # Tell everyone
-          SUBSCRIPTIONS.send_message(channel.id, {'type' => 'video',
-                                                  'provider' => video_info[:provider],
-                                                  'url' => video_info[:video_id],
-                                                  'time' => channel.current_time})
+          if message['video_id']
+            channel.play_item(message['video_id'])
+          elsif message['url']
+            channel.quickplay_video(Video.get_playback_info(message['url']))
+          end
+        end
+      end
+    when 'video_finished'
+      return if @current_user.nil?
+      # Only the owner of the channel can set the video
+      if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
+        channel = Channel.find_by_id(message['channel_id'])
+        if channel.user == @current_user
+          channel.next_video!
         end
       end
     when 'video_time'
@@ -287,8 +436,6 @@ class WebSocketApp < Rack::WebSocket::Application
             puts "ADJUSTING CHANNEL TIME: #{message['time']} vs #{current_time} / #{channel.current_time(now)} #{current_time - message['time']}"
             channel.delta_start_time!(message['time'], now)
           end
-          # Tell everyone the current time
-          SUBSCRIPTIONS.send_message(channel.id, {'type' => 'video_time', 'time' => message['time']})
         end
       end
     end
@@ -382,15 +529,37 @@ class App < Sinatra::Base
     end.to_json
   end
   
+  # Set current video to playlist item
+  put '/video' do
+    login_required
+    content_type :json
+    channel = Channel.find_by_id(params[:channel_id])
+    
+    response_data = {}
+    if channel and channel.user == current_user
+      video = channel.videos.find_by_id(params[:id])
+      if video
+        channel.play_item(video)
+        response_data = video.to_info
+      end
+    end
+    
+    response_data.to_json
+  end
+  
   # Add video to playlist
   post '/video' do
     login_required
     content_type :json
     channel = Channel.find_by_id(params[:channel_id])
     
-    if channel.user == current_user
-      channel.add_video(params[:video_info])
+    response_data = {}
+    if channel and channel.user == current_user
+      video = channel.add_video(Video.get_playback_info(params[:url]))
+      response_data = video.to_info if video
     end
+    
+    response_data.to_json
   end
   
   # Remove video
@@ -399,12 +568,19 @@ class App < Sinatra::Base
     content_type :json
     channel = Channel.find_by_id(params[:channel_id])
     
-    if channel.user == current_user
+    response_data = {}
+    if channel and (channel.user == current_user)
       video = channel.videos.find_by_id(params[:id])
-      if video 
-        video.destroy
+      if video
+        if channel.current_video == video
+          video.update_attributes({:playlist => false})
+        else
+          video.destroy
+        end
       end
     end
+    
+    response_data.to_json
   end
   
   # Update channel info

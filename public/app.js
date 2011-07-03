@@ -95,10 +95,10 @@
         }
     };
     YoutubeHandler.prototype.onStateChange = function(newState) {
-	    console.log('STATE CHANGE', newState);
+	    //console.log('STATE CHANGE', newState);
         if (newState == 1) {
             // Playing
-            console.log('PLAYING: ', this.control.getVideoUrl(), this.videoUrl);
+            //console.log('PLAYING: ', this.control.getVideoUrl(), this.videoUrl);
             if (this.force || (this.control.getVideoUrl() != this.videoUrl)) {
                 Tube.onNewVideo(this.control.getVideoUrl());
                 this.videoUrl = this.control.getVideoUrl();
@@ -202,7 +202,7 @@
         if (!this.control) {
             this.control = document.getElementById("video");
             this.loadedControl = true;
-            console.log("BLIP LOADED");
+            //console.log("BLIP LOADED");
             this.play();
             this.control.addJScallback("current_time_change", 'HandleBlipTimeChange');
         }
@@ -214,7 +214,7 @@
                     Tube.onNewVideo(this.videoUrl);
                 } else if (param == 'playing') {
                     if (param == 'playing' && this.startTime > 0 && this.waitAd) {
-                        console.log('The wait is over, seek set');
+                        //console.log('The wait is over, seek set');
                         this.seek(this.startTime);
                         this.waitAd = false;
                     }
@@ -259,6 +259,42 @@
     Tube.onNewVideo = function(url, time) {
       Tube.socket.sendJSON({'type': 'video', 'url': url, 'time': time, 'channel_id': Tube.current_channel, 'provider': this.video.provider});
     };
+    Tube.parseDuration = function(time) {
+      var calc = time;
+      var minutes = Math.floor(time / 60.0);
+      var seconds = time % 60;
+      return minutes + ':' + seconds;
+    };
+    Tube.addPlaylistItem = function(item) {
+      //if (!item.playlist)
+      //  return;
+      var list = $('#playlist');
+      var element = $('#playlist_video_' + item.id);
+      if (element.length == 0) {
+        element = $('#playlist').append('<div class=\'item\' id=\'playlist_video_' + item.id + '\'></div>').children().last();
+        element.append('<div class=\'time\'></div>');
+        element.append('<div class=\'title\'></div>');
+        if (Tube.admin) {
+          element.append('<div class=\'delete\'>[X]</div>');
+          element.append('<div class=\'clear\'></div>');
+        }
+      }
+      element.attr('position', item.position);
+      element.attr('video_id', item.id);
+      element.children('.title').text(item.title);
+      element.children('.time').text(Tube.parseDuration(item.duration));
+      /*
+      var items = list.children('.item');
+      items.sort(function(a,b){
+        var pos_a = parseInt(a.attributes['position'].value);
+        var pos_b = parseInt(b.attributes['position'].value);
+        return (pos_a < pos_b) ? -1 : (pos_a > pos_b) ? 1 : 0;
+      })
+      $.each(items, function(idx, sort_item) { list.append(sort_item); })*/
+    };
+    Tube.removePlaylistItem = function(item) {
+      $('#playlist_video_' + item.id).remove();
+    };
     Tube.connect = function() {
         $('#status').html('Connecting...');
 
@@ -271,7 +307,7 @@
         };
         Tube.socket.onmessage = function(evt) {
             var message = JSON.parse(evt.data);
-            //$("#debug").append("<p>" + evt.data + "</p>");
+            $("#debug").append("<p>" + evt.data + "</p>");
 
             if (message.type == 'hello') {
                 Tube.socket.onauthenticated(message);
@@ -304,6 +340,10 @@
                 el.children('strong').text(Tube.userList[message.user_id].name + ':');
                 var messages = document.getElementById('messages');
                 messages.scrollTop = messages.scrollHeight;
+            } else if (message.type == 'playlist_video') {
+                Tube.addPlaylistItem(message);
+            } else if (message.type == 'playlist_video_removed') {
+                Tube.removePlaylistItem(message);
             } else if (message.type == 'video') {
                 if (!Tube.admin || Tube.video == null || message.force) {
                     Tube.setVideo(message.url, message.time, message.provider, false);
@@ -313,7 +353,7 @@
                 if (!Tube.admin && Tube.video && Tube.video.control) {
                     var currentTime = Tube.video.currentTime();
                     if ((message.time - currentTime < -Tube.video.timeMargin) || (message.time - currentTime > Tube.video.timeMargin)) {
-                        console.log('Adjust offset:', message.time - currentTime);
+                        //console.log('Adjust offset:', message.time - currentTime);
                         Tube.setTime(message.time);
                     }
                 }
@@ -338,7 +378,7 @@
                     });
                 },
                 error: function(xhr, status, error) {
-                    console.log('BARF', status, error);
+                    //console.log('BARF', status, error);
                     Tube.socket.close();
                 }
             });
@@ -398,4 +438,34 @@ $(document).ready(function() {
         evt.target.value = '';
       }
     })
+
+    $('#playlistEntryBox').keypress(function(evt){
+      $.ajax({	
+            type: 'POST',
+            url: '/video',
+            data: {'channel_id': Tube.current_channel, 'url': evt.target.value},
+            success: function(data) {
+                console.log('VIDEO ADDED',data);
+            }});
+    });
+
+    $('#playlist .delete').live('click', function(evt) {
+      $.ajax({	
+            type: 'DELETE',
+            url: '/video',
+            data: {'channel_id': Tube.current_channel, 'id': $(evt.target).parent('.item').attr('video_id')},
+            success: function(data) {
+                console.log('VIDEO DELETED',data);
+            }});
+    });
+
+    $('#playlist .title').live('click', function(evt) {
+      $.ajax({	
+            type: 'PUT',
+            url: '/video',
+            data: {'channel_id': Tube.current_channel, 'id': $(evt.target).parent('.item').attr('video_id')},
+            success: function(data) {
+                console.log('VIDEO SET',data);
+            }});
+   });
 });
