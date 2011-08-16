@@ -68,14 +68,20 @@ class Channel < ActiveRecord::Base
   # Go to next video in playlist
   def next_video!
     # Current video in playlist?
-    idx = videos.index(current_video)
-    if idx.nil? and !videos.empty?
+    video_idx = videos.index(current_video)
+    if video_idx.nil? and !videos.empty?
       self.current_video = videos.first
+      self.start_time = Time.now.utc
+      @video_changed = true
+      @force_video = true
       save
     elsif !video_idx.nil?
-      idx += 1
-      idx = 0 if idx == videos.length
-      self.current_video = videos[idx]
+      video_idx += 1
+      video_idx = 0 if video_idx == videos.length
+      self.current_video = videos[video_idx]
+      self.start_time = Time.now.utc
+      @video_changed = true
+      @force_video = true
       save
     else
       false
@@ -285,6 +291,14 @@ class SubscriberList
   
   def connection_in_channel_id?(connection, channel)
     @list[channel] && @list[channel].include?(connection)
+  end
+  
+  def user_in_channel_id?(user, channel)
+    @list[channel] && @list[channel].map(&:current_user).include?(user)
+  end
+  
+  def user_id_in_channel_id?(user_id, channel)
+    @list[channel] && @list[channel].map(&:user_id).include?(user_id)
   end
   
   def subscribe(connection, channel)
@@ -551,12 +565,11 @@ class App < Sinatra::Base
   
   # Add video to playlist
   post '/video' do
-    login_required
     content_type :json
     channel = Channel.find_by_id(params[:channel_id])
     
     response_data = {}
-    if channel and channel.user == current_user
+    if channel and SUBSCRIPTIONS.user_id_in_channel_id?(params[:user_id], channel.id) # and channel.user == current_user
       video = channel.add_video(Video.get_playback_info(params[:url]))
       response_data = video.to_info if video
     end
