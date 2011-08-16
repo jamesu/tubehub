@@ -116,6 +116,7 @@
                 clearInterval(this.timeCheckInterval);
             }
             this.timeCheckInterval = null;
+            Tube.onVideoFinished();
         }
     };
     YoutubeHandler.prototype.onError = function(code) {
@@ -220,7 +221,7 @@
                     }
                 } else if (value2 == 'playlist_complete') {
                     // We're done? wow!
-                    }
+                }
             }
         }
     };
@@ -228,6 +229,7 @@
     // Controller
     Tube.setTime = function(newTime) {
         if (this.video) {
+            this.offsetTime = (new Date()) - newTime;
             this.video.seek(newTime);
         }
     };
@@ -248,6 +250,7 @@
             }
         }
         this.video.setVideo(id, startTime, force);
+        this.offsetTime = (new Date()) - startTime;
     };
     Tube.onTimeChange = function(newTime) {
         Tube.socket.sendJSON({
@@ -258,6 +261,9 @@
     };
     Tube.onNewVideo = function(url, time) {
       Tube.socket.sendJSON({'type': 'video', 'url': url, 'time': time, 'channel_id': Tube.current_channel, 'provider': this.video.provider});
+    };
+    Tube.onVideoFinished = function() {
+      Tube.socket.sendJSON({'type': 'video_finished', 'channel_id': Tube.current_channel});
     };
     Tube.parseDuration = function(time) {
       var calc = time;
@@ -307,7 +313,7 @@
         };
         Tube.socket.onmessage = function(evt) {
             var message = JSON.parse(evt.data);
-            $("#debug").append("<p>" + evt.data + "</p>");
+            //$("#debug").append("<p>" + evt.data + "</p>");
 
             if (message.type == 'hello') {
                 Tube.socket.onauthenticated(message);
@@ -440,13 +446,16 @@ $(document).ready(function() {
     })
 
     $('#playlistEntryBox').keypress(function(evt){
+      if (evt.keyCode == 13) {
       $.ajax({	
             type: 'POST',
             url: '/video',
-            data: {'channel_id': Tube.current_channel, 'url': evt.target.value},
+            data: {'user_id': Tube.user_id, 'channel_id': Tube.current_channel, 'url': evt.target.value},
             success: function(data) {
                 console.log('VIDEO ADDED',data);
             }});
+        evt.target.value = '';
+      }
     });
 
     $('#playlist .delete').live('click', function(evt) {
