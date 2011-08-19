@@ -175,9 +175,9 @@ class Video < ActiveRecord::Base
       match = location.path.match(BLIP_MATCH)
       match ? ['blip', match[1]] : ['blip', nil]
     when 'youtube.com'
-      ['youtube', query['v'].to_s]
+      ['youtube', query['v'][0].to_s]
     when 'www.youtube.com'
-      ['youtube', query['v'].to_s]
+      ['youtube', query['v'][0].to_s]
     else
       [nil, '']
     end
