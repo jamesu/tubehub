@@ -1,0 +1,1 @@
+web: /usr/local/rvm/bin/rvm-exec 1.9.2 thin-websocket -D -R config.ru start -p $PORT

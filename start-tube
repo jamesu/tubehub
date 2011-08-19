@@ -1,4 +1,0 @@
-#!/bin/sh
-
-thin-websocket -D -R config.ru start -p 4567
-

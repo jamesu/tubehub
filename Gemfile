@@ -7,6 +7,7 @@ gem 'activerecord'
 gem 'json'
 gem 'eventmachine'
 gem 'em-http-request'
+gem 'thin'
 
 gem 'websocket-rack'
-
+gem 'foreman'
