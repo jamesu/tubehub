@@ -1,0 +1,6 @@
+<h1>Channels</h1>
+<div id="channels">
+<% @channels.each do |channel| %>
+<a href="/r/<%= channel.id%>"><%= channel.name %></a>
+<% end %>
+</div>

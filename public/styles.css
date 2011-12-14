@@ -477,3 +477,22 @@ label.check {
 #playlist .item .time {
 	font-weight: normal;
 }
+
+#overlaycanvas {
+  width: 425px;
+  height: 316px;
+  border: 1px solid red;
+  float: left;
+  position: absolute;
+  //overflow: hidden;
+}
+
+#messages .user {
+	font-weight: bold;
+	float: left;
+	margin-right: 6px;
+}
+
+#messages .msg {
+	
+}

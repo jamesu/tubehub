@@ -11,3 +11,4 @@ gem 'thin'
 
 gem 'websocket-rack'
 gem 'foreman'
+gem 'uglifier'

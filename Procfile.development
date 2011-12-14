@@ -1,0 +1,1 @@
+web: thin-websocket -D -R config.ru start -p $PORT
