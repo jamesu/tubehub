@@ -1,8 +1,10 @@
 
 class User < ActiveRecord::Base
   before_validation :set_tokens
-  attr_accessor :password
+  attr_accessor :password, :password_confirm
   attr_accessor :last_set_time
+  
+  attr_accessible :name, :password, :password_confirm
   
   def set_tokens
     if @password
@@ -24,6 +26,13 @@ class User < ActiveRecord::Base
     roffs = rand(25)
     self[:auth_token] = Digest::SHA1.hexdigest(Digest::SHA1.hexdigest(sprintf("%s%08x%05x%.8f", rand(32767), sec, usec, rval))[roffs..roffs+12])
     save!
+  end
+  
+  def to_info(options={})
+    {
+      :id => id,
+      :name => name
+    }
   end
   
   def self.authenticate(name, password)
@@ -93,7 +102,7 @@ class Channel < ActiveRecord::Base
   end
   
   # Adds video info, grabs metadata later
-  def add_video(video_info, from=Time.now.utc)
+  def add_video(video_info, from=Time.now.utc, options={})
     if video_info[:provider] == nil
       return nil
     end
@@ -107,7 +116,7 @@ class Channel < ActiveRecord::Base
                         :playlist => true}
     video.save
     
-    video.grab_metadata
+    video.grab_metadata unless options[:no_metadata]
     video
   end
   
@@ -159,7 +168,22 @@ class Channel < ActiveRecord::Base
   end
   
   def video_can_be_added_by(current_user)
-    SUBSCRIPTIONS.user_id_in_channel_id?(current_user.id, channel.id)
+    SUBSCRIPTIONS.user_id_in_channel_id?(current_user.id, id)
+  end
+  
+  
+  # Serialization
+  
+  def to_info(options={})
+    base = {
+      :id => id,
+      :user => user.try(:to_info),
+      :name => name,
+      :created_at => created_at.to_i,
+      :updated_at => updated_at.to_i,
+      :start_time => start_time.to_i,
+      :current_video => current_video.to_info(options)
+    }
   end
   
 end
@@ -232,7 +256,7 @@ class Video < ActiveRecord::Base
     # GET GET http://blip.tv/file/:id?skin=rss [channel/item/title]
   end
   
-  def to_info
+  def to_info(options={})
     {'id' => id,
      'url' => url,
      'provider' => provider,
@@ -262,7 +286,7 @@ end
 class Ban < ActiveRecord::Base
   def self.find_active_by_ip(ip)
     ban = Ban.order('ended_at').where(:ip => ip).last
-    if ban.nil? or ban.ended_at.nil? or ban.ended_At < Time.now.utc
+    if ban.nil? or ban.ended_at.nil? or ban.ended_at < Time.now.utc
       nil
     else
       ban

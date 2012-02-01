@@ -14,8 +14,9 @@
 		<input id="playlistEntryBox" name="url" value="" type="text" tabindex="1" class="medium" size="50"/>
 	</div>
 </div>
+<div class="clear"></div>
 <div id="chat">
-<ul id="userlist">
+<ul id="userList">
 </ul>
 <div id="chatInner">
 <div id="messages">
@@ -27,4 +28,4 @@
 </div>
 <div id="debug">
 </div>
-<script type="text/javascript">Tube.current_channel = <%= @channel.id %>;</script>
+<script type="text/javascript">Tube.setChannel(<%= @channel.to_info.to_json %>);</script>

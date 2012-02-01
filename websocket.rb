@@ -1,6 +1,8 @@
 
 class WebSocketApp < Rack::WebSocket::Application
   
+  API_VERSION=1
+  
   def ip_for(env)
     if addr = env['HTTP_X_FORWARDED_FOR']
       addr.split(',').last.strip
@@ -33,6 +35,10 @@ class WebSocketApp < Rack::WebSocket::Application
     @current_user ? @current_user.name : @current_name
   end
   
+  def user_data
+    {:id => user_id, :name => user_name, :anon => @current_user ? false : true }
+  end
+  
   def current_user
     @current_user
   end
@@ -40,6 +46,8 @@ class WebSocketApp < Rack::WebSocket::Application
   def process_message(env, data)
     message = JSON.parse(data) rescue {}
     now = Time.now.utc
+    
+    puts "MSG: #{message}"
     
     case message['t']
     when 'auth'
@@ -50,12 +58,12 @@ class WebSocketApp < Rack::WebSocket::Application
         send_message({'t' => 'goaway', 'reason' => 'banned', 'comment' => ban.comment})
       elsif user && user.auth_token?
         @current_user = user
-        send_message({'t' => 'hello', 'nickname' => user_name, 'uid' => user_id})
+        send_message({'t' => 'hello', 'user' => user_data, 'api' => API_VERSION})
         @current_user.update_attribute(:auth_token, nil)
         puts "OPEN[#{ip_for(env)}] #{user_id}"
       else
         @current_name = message['nickname']||'Anonymous'
-        send_message({'t' => 'hello', 'nickname' => user_name, 'uid' => user_id})
+        send_message({'t' => 'hello', 'user' => user_data, 'api' => API_VERSION})
         puts "OPEN[#{ip_for(env)}] #{user_id}"
       end
     when 'message'
@@ -65,18 +73,17 @@ class WebSocketApp < Rack::WebSocket::Application
           'content' => message['content']
         })
       end
-    when 'changename'
-      new_name = (message['nickname']||'').strip
+    when 'usermod'
+      new_name = (message['name']||'').strip
       if @current_user.nil? and !new_name.empty? and new_name != user_name
         @current_name = new_name
-        SUBSCRIPTIONS.send_message(message['channel_id'], 'changename', {'user' => user_name,
-                                                           'uid' => user_id})
+        SUBSCRIPTIONS.send_message(message['channel_id'], 'usermod', {'user' => user_data})
       end
     when 'subscribe'
       puts "#{user_id} SUBSCRIBE #{message['channel_id']}"
       channel = Channel.find_by_id(message['channel_id'])
       if channel
-        #puts "SUBSCRIBING TO CHANNEL #{channel.name}"
+        puts "SUBSCRIBING TO CHANNEL #{channel.name} (#{channel.current_video.try(:url)})"
         SUBSCRIPTIONS.subscribe(self, channel)
         
         # Get current video

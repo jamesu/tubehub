@@ -1,3 +1,4 @@
+$stdout.sync = true
 require 'rubygems'
 require 'bundler'
 Bundler.require
@@ -16,7 +17,7 @@ ActiveRecord::Base.default_timezone = :utc
 
 JSON.create_id = nil
 
-%w{models subscribers websocket}.each do |lib|
+%w{models subscribers websocket util}.each do |lib|
   require File.join(File.dirname(__FILE__), lib)
 end
 
@@ -25,18 +26,21 @@ ActiveRecord::Base.establish_connection dbconfig['development']
 SUBSCRIPTIONS = SubscriberList.new
 
 class App < Sinatra::Base
-  set :public, File.dirname(__FILE__) + '/public'
+  set :public_folder, File.dirname(__FILE__) + '/public'
   set :static, true
+  set :logging, true
   
   JS_FILES = [
-    'jquery.min.js',
-    'swfobject.js',
-    'web_socket.js',
-    'json2.js',
+    'support/jquery.min.js',
+    'support/swfobject.js',
+    'support/web_socket.js',
+    'support/json2.js',
+    'support/underscore-min.js',
+    'support/backbone-min.js',
     'app.js',
     'youtube.js',
     'blip.js',
-    'chat.js'
+    'chat.js',
   ]
 
   def current_user
@@ -51,7 +55,9 @@ class App < Sinatra::Base
   end
   
   def render_javascript(files)
-    Uglifier.new.compile(files.map{|f|File.read "#{File.dirname(__FILE__)}/javascripts/#{f}"}.join(';'))
+    data = files.map{|f|File.read "#{File.dirname(__FILE__)}/javascripts/#{f}"}
+    #Uglifier.compile(data.join(';'), {:squeeze => false})
+    data
   end
   
   helpers do
@@ -151,10 +157,13 @@ class App < Sinatra::Base
     content_type :json
     channel = Channel.find_by_id(params[:channel_id])
     
+    puts "PUT VIDEO"
     response_data = {}
     if channel and channel.can_be_moderated_by(current_user)
+      puts "ERRR FIND #{params[:id]}<<  #{params.keys.join(',')}"
       video = channel.videos.find_by_id(params[:id])
       if video
+        puts "FOUND VIDEO, PLAYING"
         channel.play_item(video)
         response_data = video.to_info
       end
@@ -168,8 +177,10 @@ class App < Sinatra::Base
     content_type :json
     channel = Channel.find_by_id(params[:channel_id])
     
+    puts "POST VIDEO"
     response_data = {}
-    if channel and channel.video_can_be_added_by(current_user)
+    if channel# and channel.video_can_be_added_by(current_user)
+      puts "ALRIGHT...."
       video = channel.add_video(Video.get_playback_info(params[:url]))
       response_data = video.to_info if video
     end

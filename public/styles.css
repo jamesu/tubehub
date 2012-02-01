@@ -415,12 +415,31 @@ label.check {
 }
 
 
-#userlist {
+#userList {
 	width: 200px;
+	height: 200px;
 	float: right;
 	list-style-image: none;
 	list-style-position: outside;
 	list-style-type: none;
+	border-left: 2px solid #cccccc;
+}
+
+#userList .user {
+	
+}
+
+#userList .user.anon .name {
+	color: #cccccc;
+}
+
+#userList .user.auth .name {
+	color: #000000;
+	font-weight: bold;
+}
+
+#messageEntry {
+	border-top: 1px dashed #cccccc;
 }
 
 #messageEntryBox {
@@ -428,13 +447,20 @@ label.check {
 }
 
 #messages {
-	height: 200px;
+	height: 175px;
 	overflow-y: scroll;
+}
+
+#chat {
+	border: 2px solid #cccccc;
+	height: 200px;
+	width: 724px;
 }
 
 #chatInner {
 	float: left;
-	width:500px;
+	width:494px;
+	height: 200px;
 }
 
 #videoContainer {
@@ -466,16 +492,25 @@ label.check {
 }
 
 #playlist .item .title {
-	cursor: pointer;
 }
 
 #playlist .item .delete {
 	float: right;
 	cursor: pointer;
+	display: none;
 }
 
 #playlist .item .time {
 	font-weight: normal;
+}
+
+#playlistContainer.editable .title {
+	cursor: pointer;
+}
+
+#playlistContainer.editable .delete {
+	display: block;
+	cursor: auto;
 }
 
 #overlaycanvas {
@@ -487,6 +522,7 @@ label.check {
   //overflow: hidden;
 }
 
+// info, critical, warning
 #messages .user {
 	font-weight: bold;
 	float: left;
@@ -495,4 +531,32 @@ label.check {
 
 #messages .msg {
 	
+}
+
+#status {
+	display: none;
+}
+
+#status.critical, #status.warning, #status.info {
+	padding: 8px;
+	font-size: 14px;
+}
+
+
+#status.critical {
+	background-color: #ff1f01;
+	color: #ffffff;
+	display: block;
+}
+
+#status.warning {
+	background-color: #ffab26;
+	color: #000000;
+	display: block;
+}
+
+#status.info {
+	background-color: #147b04;
+	color: #ffffff;
+	display: block;
 }

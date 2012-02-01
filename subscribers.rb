@@ -40,16 +40,17 @@ class SubscriberList
   end
   
   def user_id_in_channel_id?(user_id, channel)
+    puts "#{!@list[channel].nil?} && #{@list[channel].map(&:user_id).join(',')}.include?(#{user_id})"
     @list[channel] && @list[channel].map(&:user_id).include?(user_id)
   end
   
   def subscribe(connection, channel)
     permission_scope = (connection.current_user and (connection.current_user.id == channel.user_id)) ? ['admin'] : []
     @list[channel.id] ||= []
-    @list[channel.id].each{|socket| socket.send_message({'t' => 'userjoined', 'uid' => connection.user_id, 'user' => connection.user_name, 'scope' => permission_scope})}
+    @list[channel.id].each{|socket| socket.send_message({'t' => 'userjoined', 'user' => connection.user_data, 'scope' => permission_scope})}
     @list[channel.id] << connection
     @list[channel.id].each do |socket|
-      connection.send_message({'t' => 'userjoined', 'uid' => socket.user_id, 'user' => socket.user_name, 'scope' => (socket.current_user and (socket.current_user.id == channel.user_id)) ? ['admin'] : []})
+      connection.send_message({'t' => 'userjoined', 'user' => socket.user_data, 'scope' => (socket.current_user and (socket.current_user.id == channel.user_id)) ? ['admin'] : []})
     end
   end
   
@@ -60,7 +61,7 @@ class SubscriberList
       @list.each do |subscriber_channel, users|
         if users.include?(connection)
           users.delete(connection)
-          users.each{|socket| socket.send_message({'t' => 'userleft', 'uid' => connection.user_id})}
+          users.each{|socket| socket.send_message({'t' => 'userleft', 'user' => {:id => connection.user_id}})}
         end
       end
     end

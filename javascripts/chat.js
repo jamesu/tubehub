@@ -18,17 +18,17 @@ ChatManager.prototype.onmessage = function(user_id, message){
 	var atBottom = messages[0].scrollHeight - messages[0].scrollTop < 201;
 	var el = messages.append('<div><div class="user"></div><div class="msg"></div></div>').children().last();
 	el.children('.msg').text(message);
-	el.children('.user').text(Tube.userList[user_id].name + ':');
+	el.children('.user').text(Tube.userList[user_id].get('name') + ':');
 	
 	if (atBottom)
     	messages[0].scrollTop = messages[0].scrollHeight;
 };
 
 ChatManager.prototype.onchangename = function(user_id, old_name){
-    $('#user_' + message.uid).text(Tube.userList[user_id].name);
+    //$('#user_' + message.uid).text(Tube.userList[user_id].name);
     var el = $('#messages').append('<div><strong class="u1"></strong> is now known as <strong class="u2"></strong>').children().last();
     el.children('.u1').text(old_name);
-    el.children('.u2').text(Tube.userList[user_id].name);
+    el.children('.u2').text(Tube.userList[user_id].get('name'));
 }
 
 Tube.chat = new ChatManager();
