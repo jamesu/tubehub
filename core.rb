@@ -49,7 +49,11 @@ class App < Sinatra::Base
 
   def login_required
     if current_user.nil?
-      redirect '/auth'
+      if request.xhr?
+        status 401
+      else
+        redirect '/auth'
+      end
       halt
     end
   end

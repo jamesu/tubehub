@@ -12,7 +12,9 @@
 
         channel: null,
         user: null,
-        playlist: null
+        playlist: null,
+
+        tripcode: null, // authentication tripcode
     };
 
     // Models
@@ -64,14 +66,15 @@
 		var el = $(this.el).empty();
 		var item = this.model;
 		
-		var inner = el.append('<div class="name"></div>').children().last();
-		
-		if (item.anon)
+		if (item.get('anon'))
 			el.addClass('anon');
 		else
 			el.addClass('auth');
 		
-		inner.text(item.get('name'));
+		var name = el.append('<span class="name"></span>').children().last();
+		var tripcode = el.append('<span class="trip"></span>').children().last();
+		name.text(item.get('name'));
+		tripcode.text(item.get('tripcode'));
 		
 		return this;
 	  }
@@ -175,7 +178,7 @@
 		var item = new TubeListItem({model: video, id:'playlist_video_' + video.get('id')});
 		$('#playlist').append(item.render().el);
 		
-		video.bind('change', function(model){ item.renderAndSort() });
+		video.bind('change', function(model){ item.render() });
 		video.bind('change:position', function(model) {
 			
 			var idx = Tube.playlist.indexOf(model);
@@ -306,9 +309,10 @@
                 Tube.users.remove(message.user.id);
             } else if (message.t == 'usermod') {
                 var oldName = Tube.userList[message.user.id].get('name');
+	            var oldTripcode = Tube.userList[message.user.id].get('tripcode');
                 Tube.userList[message.user.id].set(message.user);
                 if (message.user.name) // TODO: see if we can use backbone for this
-                   Tube.chat.onchangename(message.user.id, oldName);
+                   Tube.chat.onchangename(message.user.id, oldName, oldTripcode);
             } else if (message.t == 'message') {
 				Tube.chat.onmessage(message.uid, message.content);
             } else if (message.t == 'playlist_video') {
@@ -356,14 +360,22 @@
                 type: 'POST',
                 url: '/auth/socket_token',
                 success: function(data) {
+	                console.log('authed',data);
                     Tube.socket.sendJSON({
                         't': 'auth',
                         'auth_token': data.auth_token
                     });
                 },
                 error: function(xhr, status, error) {
-                    //console.log('BARF', status, error);
-                    Tube.socket.close();
+                    if (error == 'Unauthorized') {
+						var name = Tube.tripcode ? Tube.tripcode : 'Anonymous'
+	                    Tube.socket.sendJSON({
+	                        't': 'auth',
+	                        'name': name
+	                    });
+					} else {
+					    Tube.socket.close();
+					}
                 }
             });
         };
@@ -408,6 +420,10 @@
     Tube.clearStatus = function() {
        $('#status').attr('class', '');
     };
+    Tube.setName = function(tripcode) {
+      Tube.tripcode = tripcode;
+      Tube.socket.sendJSON({'t': 'usermod', 'name': tripcode, 'channel_id': Tube.channel.get('id')});
+    };
 })();
 
 // Entry
@@ -420,7 +436,7 @@ $(document).ready(function() {
         if (evt.target.value.indexOf('/nick') == 0) {
           var newName = evt.target.value.split(' ')[1];
           if (newName)
-            Tube.socket.sendJSON({'t': 'usermod', 'name': newName, 'channel_id': Tube.channel.get('id')});
+            Tube.setName(newName);
         } else {
           Tube.socket.sendMessage(evt.target.value);
         }

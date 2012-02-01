@@ -36,7 +36,7 @@ class WebSocketApp < Rack::WebSocket::Application
   end
   
   def user_data
-    {:id => user_id, :name => user_name, :anon => @current_user ? false : true }
+    {:id => user_id, :name => user_name, :tripcode => @current_tripcode, :anon => @current_user ? false : true }
   end
   
   def current_user
@@ -62,7 +62,7 @@ class WebSocketApp < Rack::WebSocket::Application
         @current_user.update_attribute(:auth_token, nil)
         puts "OPEN[#{ip_for(env)}] #{user_id}"
       else
-        @current_name = message['nickname']||'Anonymous'
+        @current_name, @current_tripcode = Tripcode.encode(message['name']||'Anonymous')
         send_message({'t' => 'hello', 'user' => user_data, 'api' => API_VERSION})
         puts "OPEN[#{ip_for(env)}] #{user_id}"
       end
@@ -74,9 +74,10 @@ class WebSocketApp < Rack::WebSocket::Application
         })
       end
     when 'usermod'
-      new_name = (message['name']||'').strip
+      new_name, new_tripcode = Tripcode.encode((message['name']||'').strip)
       if @current_user.nil? and !new_name.empty? and new_name != user_name
         @current_name = new_name
+        @current_tripcode = new_tripcode
         SUBSCRIPTIONS.send_message(message['channel_id'], 'usermod', {'user' => user_data})
       end
     when 'subscribe'

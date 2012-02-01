@@ -425,17 +425,18 @@ label.check {
 	border-left: 2px solid #cccccc;
 }
 
-#userList .user {
-	
-}
-
-#userList .user.anon .name {
-	color: #cccccc;
-}
-
-#userList .user.auth .name {
-	color: #000000;
+.user {
+	color: #117743;
 	font-weight: bold;
+}
+
+.user .trip {
+	font-weight: normal;
+	color: #228854;
+}
+
+.user.auth .name, .user.auth .trip {
+	color: #ff0000;
 }
 
 #messageEntry {
@@ -522,9 +523,7 @@ label.check {
   //overflow: hidden;
 }
 
-// info, critical, warning
-#messages .user {
-	font-weight: bold;
+#messages .um {
 	float: left;
 	margin-right: 6px;
 }
