@@ -1,7 +1,10 @@
 $stdout.sync = true
+ENV["RACK_ENV"] ||= "development"
+
 require 'rubygems'
 require 'bundler'
-Bundler.require
+Bundler.setup
+Bundler.require(:default, ENV["RACK_ENV"].to_sym)
 require 'active_record'
 require 'logger'
 require 'sinatra/base'
@@ -9,21 +12,6 @@ require 'rack/websocket'
 require 'uri'
 require 'cgi'
 require 'rexml/document'
-
-dbconfig = YAML.load(File.read('config/database.yml'))
-#Time.zone = 'UTC'
-ActiveRecord::Base.time_zone_aware_attributes = true
-ActiveRecord::Base.default_timezone = :utc
-
-JSON.create_id = nil
-
-%w{models subscribers websocket util}.each do |lib|
-  require File.join(File.dirname(__FILE__), lib)
-end
-
-ActiveRecord::Base.establish_connection dbconfig['development']
-
-SUBSCRIPTIONS = SubscriberList.new
 
 class App < Sinatra::Base
   set :public_folder, File.dirname(__FILE__) + '/public'
@@ -75,6 +63,10 @@ class App < Sinatra::Base
     def link_to(name, href, options={})
       opts = options.keys.map { |key| "#{key}=\"#{options[key]}\"" }.join(' ')
       "<a href=\"#{escape_html(href)}\" #{opts}>#{name}</a>"
+    end
+    
+    def get_channels
+      @channels ||= Channel.all
     end
   end
 
@@ -213,6 +205,61 @@ class App < Sinatra::Base
     response_data.to_json
   end
   
+  # Token for socket identification
+  post '/auth/socket_token' do
+    login_required
+    current_user.generate_auth_token!
+    content_type :json
+    {:auth_token => current_user.auth_token}.to_json
+  end
+  
+  # Admin panel
+  
+  get '/admin' do
+    login_required
+    return status(401) if !current_user.admin
+    
+    erb :admin
+  end
+  
+  # Enumerate connections, videos, ban count, historical figures, etc
+  get '/stats' do
+    login_required
+    return status(401) if !current_user.admin
+  end
+  
+  get '/users' do
+    login_required
+    return status(401) if !current_user.admin
+  end
+  
+  get '/users/:id' do
+    login_required
+    return status(401) if !current_user.admin
+  end
+  
+  put '/user/:id' do
+    login_required
+    return status(401) if !current_user.admin
+  end
+  
+  get '/bans' do
+    login_required
+  end
+  
+  get '/ban/:id' do
+    login_required
+  end
+  
+  put '/ban/:id' do
+    login_required
+  end
+  
+  post '/channel' do
+    login_required
+    return status(401) if !current_user.admin
+  end
+  
   # Update channel info
   put '/channel' do
     login_required
@@ -229,14 +276,23 @@ class App < Sinatra::Base
     
     response_data.to_json
   end
-  
-  # Token for socket identification
-  post '/auth/socket_token' do
-    login_required
-    current_user.generate_auth_token!
-    content_type :json
-    {:auth_token => current_user.auth_token}.to_json
-  end
 end
 
+
+# Init Environment
+
+dbconfig = YAML.load(File.read('config/database.yml'))
+#Time.zone = 'UTC'
+ActiveRecord::Base.time_zone_aware_attributes = true
+ActiveRecord::Base.default_timezone = :utc
+
+JSON.create_id = nil
+
+%w{models subscribers websocket util}.each do |lib|
+  require File.join(File.dirname(__FILE__), lib)
+end
+
+ActiveRecord::Base.establish_connection dbconfig[ENV['RACK_ENV']]
+
+SUBSCRIPTIONS = SubscriberList.new
 

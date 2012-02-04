@@ -162,7 +162,6 @@ form div {
 #headerInner {
   padding: 0px 6px 0px 6px;
   text-align: left;
-  background: #007700;
 }
 
 
@@ -179,7 +178,7 @@ form div {
 
 
 #pageContent {
-  margin-top: 12px;
+  margin-top: 0px;
 }
 
 
@@ -211,6 +210,7 @@ form div {
 #tabsWrapper ul li {
   float: left;
   margin: 0pt 1px;
+  background: #007700;
 }
 
 #tabsWrapper ul li a {

@@ -12,7 +12,11 @@
 	<div id="header">
 		<div id="headerInner">
 		<div id="topCrumbs"></div>
-		<div id="tabsWrapper"></div>
+		<div id="tabsWrapper"><ul>
+		<% get_channels.each do |channel| %>
+			<li><a href="/r/<%=channel.id%>"><%= escape_html channel.name %></a></li>
+		<% end %>
+		</ul></div>
 		<div class="clear"></div>
 		</div>
 	</div>

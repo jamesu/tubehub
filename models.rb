@@ -103,7 +103,7 @@ class Channel < ActiveRecord::Base
   
   # Adds video info, grabs metadata later
   def add_video(video_info, from=Time.now.utc, options={})
-    if video_info[:provider] == nil
+    if video_info[:provider] == nil || video_info[:video_id].nil?
       return nil
     end
     
@@ -194,28 +194,42 @@ class Video < ActiveRecord::Base
   
   before_update :set_update_info
   after_save :notify_updates
-  after_create :notify_updates
   after_destroy :notify_destroy
   
-  BLIP_MATCH = /\/play\/(.*)/
+  BLIP_MATCH = /\/play\/([^\.\/+]*)/
   def self.get_playback_info(url)
     location = URI.parse(url) rescue nil
     host = location ? location.host : ''
     query = location ? CGI.parse(location.query) : {} rescue {}
     
-    provider, video_id = case host
+    provider, video_id, video_time = case host
     when 'blip.tv'
       match = location.path.match(BLIP_MATCH)
-      match ? ['blip', match[1]] : ['blip', nil]
-    when 'youtube.com'
-      ['youtube', query['v'][0].to_s]
-    when 'www.youtube.com'
-      ['youtube', query['v'][0].to_s]
+      match ? ['blip', match[1], 0] : ['blip', nil, 0]
+    when 'youtube.com', 'www.youtube.com'
+      time = location.fragment ? parse_yttimestamp(location.fragment) : 0
+      ['youtube', query['v'] ? query['v'][0].to_s : nil, time]
     else
-      [nil, '']
+      [nil, '', 0]
     end
     
-    {:video_id => video_id, :time => 0, :provider => provider}
+    {:video_id => (video_id.nil? || video_id.empty?) ? nil : video_id, :time => video_time, :provider => provider}
+  end
+
+  YT_TIMESTAMP_MATCH=/(?:t=)?([0-9]+)(h|m|s)/i
+  def self.parse_yttimestamp(stamp)
+    total=0
+    stamp.scan(YT_TIMESTAMP_MATCH) do |u,t|
+      case t
+      when 'h'
+        total += u.to_i * 3600
+      when 'm'
+        total += u.to_i * 60
+      when 's'
+        total += u.to_i
+      end
+    end
+    total
   end
   
   def grab_metadata

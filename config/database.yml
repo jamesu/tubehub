@@ -4,7 +4,7 @@ development:
   username: root 
   password:
   database: db/tube.sqlite3
-  
+
 test:
   adapter: sqlite3
   database: db/tube-test.sqlite3
