@@ -1,12 +1,26 @@
 
 class User < ActiveRecord::Base
-  before_validation :set_tokens
+  before_validation :update_tokens
   attr_accessor :password, :password_confirm
   attr_accessor :last_set_time
   
+  has_and_belongs_to_many :admin_channels, :class_name => 'Channel', :join_table => 'channel_admins'
+  
   attr_accessible :name, :password, :password_confirm
   
-  def set_tokens
+  validates_presence_of :name
+  validates_uniqueness_of :name
+  validates_presence_of :password, :on => :create
+  
+  validate :check_password
+  
+  def check_password
+    if @password_confirm != @password
+      errors.add(:password_confirm, 'Password needs to be confirmed')
+    end
+  end
+  
+  def update_tokens
     if @password
       tnow = Time.now()
       sec = tnow.tv_usec
@@ -29,10 +43,21 @@ class User < ActiveRecord::Base
   end
   
   def to_info(options={})
-    {
+    base = {
       :id => id,
-      :name => name
+      :name => name,
+      :nick => nick
     }
+    
+    if options[:admin]
+      base.merge!({
+        :created_at => created_at,
+        :updated_at => updated_at,
+        :super_admin => admin
+      })
+    end
+    
+    base
   end
   
   def self.authenticate(name, password)
@@ -48,6 +73,8 @@ end
 class Channel < ActiveRecord::Base
   belongs_to :user
   belongs_to :current_video, :class_name => 'Video'
+  has_and_belongs_to_many :admin_channels, :class_name => 'User', :join_table => 'channel_admins'
+  has_many :moderators
   has_many :videos
   
   before_update :set_update_info
@@ -184,6 +211,13 @@ class Channel < ActiveRecord::Base
       :start_time => start_time.to_i,
       :current_video => current_video.to_info(options)
     }
+    
+    if options[:full]
+      options[:header] = header
+      options[:fooer] = footer
+    end
+    
+    base
   end
   
 end
@@ -271,13 +305,15 @@ class Video < ActiveRecord::Base
   end
   
   def to_info(options={})
-    {'id' => id,
+    base = {'id' => id,
      'url' => url,
      'provider' => provider,
      'title' => title,
      'duration' => duration,
      'playlist' => playlist,
-     'position' => position}
+     'position' => position,
+     'added_by' => added_by}
+    base['added_by_ip'] = added_by_ip if options[:mod]
   end
   
   def set_update_info
@@ -297,7 +333,25 @@ class Video < ActiveRecord::Base
   end
 end
 
+class Moderator < ActiveRecord::Base
+  belongs_to :channel
+  
+  def to_info(options={})
+    {:name => name}
+  end
+end
+
 class Ban < ActiveRecord::Base
+  attr_accessible :ip, :created_at, :ended_at, :comment, :banned_by, :banned_by_ip
+  
+  def duration
+    ended_at - (created_at||Time.now.utc)
+  end
+  
+  def duration=(value)
+    self[:ended_at] = Time.now.utc + value
+  end 
+  
   def self.find_active_by_ip(ip)
     ban = Ban.order('ended_at').where(:ip => ip).last
     if ban.nil? or ban.ended_at.nil? or ban.ended_at < Time.now.utc
@@ -305,6 +359,16 @@ class Ban < ActiveRecord::Base
     else
       ban
     end
+  end
+  
+  def to_info(options={})
+    {'id' => id,
+     'ip' => ip,
+     'created_at' => created_at.to_i,
+     'ended_at' => ended_at.to_i,
+     'comment' => comment,
+     'banned_by' => banned_by,
+     'banned_by_ip' => banned_by_ip}
   end
 end
 

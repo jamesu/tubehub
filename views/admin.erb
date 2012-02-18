@@ -1,4 +1,8 @@
 <h1>Admin</h1>
-<div>
-Some sort of control panel goes here
+<div id="adminroot">
+<% unless @subpath.nil? %>
+<% set_tab(:"admin_#{@subpath}") %>
+<% else %>
+<% set_tab(:"admin") %>
+<% end %>
 </div>

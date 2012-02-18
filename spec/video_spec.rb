@@ -12,9 +12,9 @@ BASE_VIDEO_INFO =
 
 describe Video do
   before(:each) do
-  	Video.delete_all
-  	Channel.delete_all
-  	User.delete_all
+    Video.delete_all
+    Channel.delete_all
+    User.delete_all
   end
 
   describe "get_playback_info" do
@@ -52,44 +52,44 @@ describe Video do
   
   describe "an instance" do
     it "should notify SUBSCRIPTIONS of creation" do
-    	channel = Channel.create!(:name => 'v4c')
-    	SUBSCRIPTIONS.should_receive(:send_message).with(channel.id, 'playlist_video', BASE_VIDEO_INFO)
+      channel = Channel.create!(:name => 'v4c')
+      SUBSCRIPTIONS.should_receive(:send_message).with(channel.id, 'playlist_video', BASE_VIDEO_INFO)
 
-    	video = Video.new(:channel_id => channel.id,
-    	                      :title => BASE_VIDEO_INFO['title'],
-    	                      :url => BASE_VIDEO_INFO['url'],
-    	                      :provider => BASE_VIDEO_INFO['provider'])
+      video = Video.new(:channel_id => channel.id,
+                            :title => BASE_VIDEO_INFO['title'],
+                            :url => BASE_VIDEO_INFO['url'],
+                            :provider => BASE_VIDEO_INFO['provider'])
       video.id = 1
       video.save
     end
     
     it "should notify SUBSCRIPTIONS of updates" do
-    	channel = Channel.create!(:name => 'v4c')
-    	video = Video.new(:channel_id => channel.id,
-    	                      :title => BASE_VIDEO_INFO['title'],
-    	                      :url => BASE_VIDEO_INFO['url'],
-    	                      :provider => BASE_VIDEO_INFO['provider'])
+      channel = Channel.create!(:name => 'v4c')
+      video = Video.new(:channel_id => channel.id,
+                            :title => BASE_VIDEO_INFO['title'],
+                            :url => BASE_VIDEO_INFO['url'],
+                            :provider => BASE_VIDEO_INFO['provider'])
       video.id = 1
       video.save
 
-    	SUBSCRIPTIONS.should_receive(:send_message).with(channel.id, 'playlist_video', BASE_VIDEO_INFO.merge('title' => 'Modified Name'))
+      SUBSCRIPTIONS.should_receive(:send_message).with(channel.id, 'playlist_video', BASE_VIDEO_INFO.merge('title' => 'Modified Name'))
 
-    	video.title = 'Modified Name'
-    	video.save!
+      video.title = 'Modified Name'
+      video.save!
     end
 
     it "should notify SUBSCRIPTIONS of destruction" do
-    	channel = Channel.create!(:name => 'v4c')
-    	video = Video.new(:channel_id => channel.id,
-    	                      :title => BASE_VIDEO_INFO['title'],
-    	                      :url => BASE_VIDEO_INFO['url'],
-    	                      :provider => BASE_VIDEO_INFO['provider'])
+      channel = Channel.create!(:name => 'v4c')
+      video = Video.new(:channel_id => channel.id,
+                            :title => BASE_VIDEO_INFO['title'],
+                            :url => BASE_VIDEO_INFO['url'],
+                            :provider => BASE_VIDEO_INFO['provider'])
       video.id = 1
       video.save
 
-    	SUBSCRIPTIONS.should_receive(:send_message).with(channel.id, 'playlist_video_removed', {'id' => video.id})
+      SUBSCRIPTIONS.should_receive(:send_message).with(channel.id, 'playlist_video_removed', {'id' => video.id})
 
-    	video.destroy
+      video.destroy
     end
   end
 end

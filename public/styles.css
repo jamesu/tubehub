@@ -223,7 +223,7 @@ form div {
 }
 
 #tabsWrapper ul li a.active {
-  background: #eeeeee;
+  background: #ffffff;
   text-decoration: none;
   color: black;
 }
@@ -559,3 +559,12 @@ label.check {
 	color: #ffffff;
 	display: block;
 }
+
+.adminsection {
+  background: #000000;
+  color: #ffffff;
+  font-weight: bold;
+  width: 100%;
+  padding: 0 6px;
+}
+

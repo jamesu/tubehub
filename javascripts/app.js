@@ -1,3 +1,21 @@
+// From http://stackoverflow.com/questions/1184624/serialize-form-to-json-with-jquery
+$.fn.serializeObject = function()
+{
+    var o = {};
+    var a = this.serializeArray();
+    $.each(a, function() {
+        if (o[this.name] || o[this.name] == '') {
+            if (!o[this.name].push) {
+                o[this.name] = [o[this.name]];
+            }
+            o[this.name].push(this.value || '');
+        } else {
+            o[this.name] = this.value || '';
+        }
+    });
+    return o;
+};
+
 (function() {
     Tube = {
         api: 1,
@@ -46,165 +64,162 @@
     });
 
     var TubeUserItem = Backbone.View.extend({
-	  tagName: 'li',
+      tagName: 'li',
 
-	  className: 'user',
+      className: 'user',
 
-	  events: {
-	    'click .title':   'open'
-	  },
-	
-	  open: function() {
-		if (this.model.get('id') == Tube.user.get('id')) {
-			// Edit
-			//inner.
-			
-		}
-	  },
+      events: {
+        'click .title':   'open'
+      },
 
-	  render: function() {
-		var el = $(this.el).empty();
-		var item = this.model;
-		
-		if (item.get('anon'))
-			el.addClass('anon');
-		else
-			el.addClass('auth');
-		
-		var name = el.append('<span class="name"></span>').children().last();
-		var tripcode = el.append('<span class="trip"></span>').children().last();
-		name.text(item.get('name'));
-		tripcode.text(item.get('tripcode'));
-		
-		return this;
-	  }
+      open: function() {
+        if (this.model.get('id') == Tube.user.get('id')) {
+          // Edit
+          //inner.
 
-	});
+        }
+      },
+
+      render: function() {
+        var el = $(this.el).empty();
+        var item = this.model;
+
+        if (item.get('anon'))
+          el.addClass('anon');
+        else
+          el.addClass('auth');
+
+        var name = el.append('<span class="name"></span>').children().last();
+        var tripcode = el.append('<span class="trip"></span>').children().last();
+        name.text(item.get('name'));
+        tripcode.text(item.get('tripcode'));
+
+        return this;
+      }
+    });
 
     var TubeListItem = Backbone.View.extend({
-	  tagName: 'div',
+      tagName: 'div',
 
-	  className: 'item',
+      className: 'item',
 
-	  events: {
-	    'click .title':   'open',
-	    'click .delete': 'destroy'
-	  },
-	
-	  open: function() {
-		console.log(this.model)
-		$.ajax({	
-	            type: 'PUT',
-	            url: '/video',
-	            data: {'channel_id': Tube.channel.get('id'), 'id': this.model.get('id')},
-	            success: function(data) {
-	                console.log('VIDEO SET',data);
-	            }});
-	  },
-	
-	  destroy: function() {
-		// Delete model
-		$.ajax({type: 'DELETE',
-	            url: '/video',
-	            data: {'channel_id': Tube.channel.get('id'), 'id': this.model.get('id')},
-	            success: function(data) {
-	                console.log('VIDEO DELETED',data);
-	            }});
-	  },
+      events: {
+        'click .title':   'open',
+        'click .delete': 'destroy'
+      },
 
-	  render: function() {
-		var el = $(this.el).empty();
-		var item = this.model;
-		var inner = el;
-		inner.append('<div class=\'time\'></div>');
-		inner.append('<div class=\'title\'></div>');
-		
-		if (Tube.admin)
-			inner.append('<div class=\'delete\'>[X]</div>');
-		
-		inner.append('<div class=\'clear\'></div>');
-		
-		console.log('tpl add', item);
-		inner.attr('id', 'playlist_video_' + item.id)
-		     .attr('position', item.get('position'))
-		     .attr('video_id', item.get('id'));
-		inner.children('.title').text(item.get('title'));
-		inner.children('.time').text(Tube.parseDuration(item.get('duration')));
-	
-		return this;
-	  }
+      open: function() {
+        $.ajax({	
+          type: 'PUT',
+          url: '/video',
+          data: {'channel_id': Tube.channel.get('id'), 'id': this.model.get('id')},
+          success: function(data) {
+            console.log('VIDEO SET',data);
+            }});
+          },
 
-	});
-	
-	
-	// Init collections
-	Tube.channel = new TubeChannel();
+          destroy: function() {
+            // Delete model
+            $.ajax({type: 'DELETE',
+            url: '/video',
+            data: {'channel_id': Tube.channel.get('id'), 'id': this.model.get('id')},
+            success: function(data) {
+              console.log('VIDEO DELETED',data);
+        }});
+      },
+
+      render: function() {
+        var el = $(this.el).empty();
+        var item = this.model;
+        var inner = el;
+        inner.append('<div class=\'time\'></div>');
+        inner.append('<div class=\'title\'></div>');
+
+        if (Tube.admin)
+        inner.append('<div class=\'delete\'>[X]</div>');
+
+        inner.append('<div class=\'clear\'></div>');
+
+        console.log('tpl add', item);
+        inner.attr('id', 'playlist_video_' + item.id)
+        .attr('position', item.get('position'))
+        .attr('video_id', item.get('id'));
+        inner.children('.title').text(item.get('title'));
+        inner.children('.time').text(Tube.parseDuration(item.get('duration')));
+
+        return this;
+      }
+    });
+
+
+    // Init collections
+    Tube.channel = new TubeChannel();
     Tube.users = new TubeUsers();
-	Tube.playlist = new TubePlaylist();
-	
-	
-	// Bind events
-	
-	// Channel
-	Tube.channel.bind('change', function(channel){
-		// ...
-	})
-	
-	// User list
-	Tube.users.bind('add', function(user){
-		console.log('user add callback', user.get('id'));
-		
-		// Add to the list
-		//if (user.get('id') != Tube.user.get('id')) {
-			var item = new TubeUserItem({model: user, id:'list_' + user.get('id')});
-			$('#userList').append(item.render().el);
-		
-			user.bind('change', function(model){ item.render() });
-		//}
-	});
-	
-	Tube.users.bind('refresh', function(err) { console.log('USER REFRESH',err);});
-	
-	Tube.users.bind('remove', function(user){
-		var item = $('#list_' + user.get('id'));
-		user.unbind();
-		delete Tube.userList[user.get('id')];
-		item.remove();
-	});
-	
-	// Playlist
-	Tube.playlist.bind('add', function(video){
-		console.log('add callback', video.get('url'));
-		var item = new TubeListItem({model: video, id:'playlist_video_' + video.get('id')});
-		$('#playlist').append(item.render().el);
-		
-		video.bind('change', function(model){ item.render() });
-		video.bind('change:position', function(model) {
-			
-			var idx = Tube.playlist.indexOf(model);
-			var rest = Tube.playlist.rest(idx);
-			var next = rest[0];
-			
-			if (next) {
-				// Before the next element
-				item.el.insertBefore('#playlist_video_' + next.get('id'));
-			} else {
-				// At the end
-				$('#playlist').append(item);
-			}
-		})
-	});
-	
-	Tube.playlist.bind('remove', function(video){
-		var item = $('#playlist_video_' + video.get('id'));
-		item.unbind();
-		item.remove();
-	});
-	
+    Tube.playlist = new TubePlaylist();
+
+
+    // Bind events
+
+    // Channel
+    Tube.channel.bind('change', function(channel){
+      // ...
+    })
+
+    // User list
+    Tube.users.bind('add', function(user){
+      console.log('user add callback', user.get('id'));
+
+      // Add to the list
+      //if (user.get('id') != Tube.user.get('id')) {
+        var item = new TubeUserItem({model: user, id:'list_' + user.get('id')});
+        $('#userList').append(item.render().el);
+
+        user.bind('change', function(model){ item.render() });
+        //}
+    });
+
+    Tube.users.bind('refresh', function(err) { console.log('USER REFRESH',err);});
+
+    Tube.users.bind('remove', function(user){
+      var item = $('#list_' + user.get('id'));
+      user.unbind();
+      delete Tube.userList[user.get('id')];
+      item.remove();
+    });
+
+    // Playlist
+    Tube.playlist.bind('add', function(video){
+      console.log('add callback', video.get('url'));
+      var item = new TubeListItem({model: video, id:'playlist_video_' + video.get('id')});
+      $('#playlist').append(item.render().el);
+
+      video.bind('change', function(model){ item.render() });
+      video.bind('change:position', function(model) {
+
+        var idx = Tube.playlist.indexOf(model);
+        var rest = Tube.playlist.rest(idx);
+        var next = rest[0];
+
+        if (next) {
+          // Before the next element
+          item.el.insertBefore('#playlist_video_' + next.get('id'));
+        } else {
+          // At the end
+          $('#playlist').append(item);
+        }
+      })
+    });
+
+    Tube.playlist.bind('remove', function(video){
+      var item = $('#playlist_video_' + video.get('id'));
+      item.unbind();
+      item.remove();
+    });
+
 
     // Controller
     Tube.registerHandler = function(provider, handler) {
-		Tube.handlers[provider] = handler;
+      Tube.handlers[provider] = handler;
     };
     Tube.setChannel = function(channel) {
        if (Tube.channel)
@@ -233,8 +248,8 @@
             if (handler) {
                this.video = new handler();
             } else {
-				return;
-			}
+              return;
+            }
         }
         this.video.setVideo(id, startTime, force);
         this.offsetTime = (new Date()) - startTime;
@@ -285,36 +300,36 @@
         };
         Tube.socket.onmessage = function(evt) {
             var message = JSON.parse(evt.data);
-			console.log(message);
+            console.log(message);
             //$('#debug').append('<p>' + evt.data + '</p>');
 
             if (message.t == 'hello') {
                 Tube.socket.onauthenticated(message);
             } else if (message.t == 'goaway') {
                 Tube.socket.onauthfailed(message);
-			} else if (message.t == 'userjoined') {
-				var user = Tube.users.get(message.user.id);
-				if (user)
-					Tube.users.remove(message.user.id);
-				Tube.users.add(message.user);
-				user = Tube.users.get(message.user.id);
+            } else if (message.t == 'userjoined') {
+                var user = Tube.users.get(message.user.id);
+                if (user)
+                  Tube.users.remove(message.user.id);
+                Tube.users.add(message.user);
+                user = Tube.users.get(message.user.id);
                 if (Tube.user.get('id') == message.user.id) {
-                    Tube.admin = (message['scope'] || []).indexOf('admin') >= 0;
+                  Tube.admin = (message['scope'] || []).indexOf('admin') >= 0;
 
-					// TODO: use the binding to update this
-					$('#playlistContainer').addClass('editable');
+                    // TODO: use the binding to update this
+                  $('#playlistContainer').addClass('editable');
                 }
                 Tube.userList[message.user.id] = user;
             } else if (message.t == 'userleft') {
                 Tube.users.remove(message.user.id);
             } else if (message.t == 'usermod') {
                 var oldName = Tube.userList[message.user.id].get('name');
-	            var oldTripcode = Tube.userList[message.user.id].get('tripcode');
+                var oldTripcode = Tube.userList[message.user.id].get('tripcode');
                 Tube.userList[message.user.id].set(message.user);
                 if (message.user.name) // TODO: see if we can use backbone for this
                    Tube.chat.onchangename(message.user.id, oldName, oldTripcode);
             } else if (message.t == 'message') {
-				Tube.chat.onmessage(message.uid, message.content);
+                Tube.chat.onmessage(message.uid, message.content);
             } else if (message.t == 'playlist_video') {
                 Tube.addPlaylistItem(message);
             } else if (message.t == 'playlist_video_removed') {
@@ -335,22 +350,22 @@
             }
         };
         Tube.socket.onerror = function() {
-	       this.onclose();
+          this.onclose();
         };
         Tube.socket.onclose = function() {
-			Tube.users.reset();
-            Tube.userList = {};
-            if (Tube.connected) {
-              // Connection failed, retry
-              if (Tube.connectionAttempts > 10) {
-                 Tube.setStatus('critical', 'Server down, try again later');
-	          } else {
-                 Tube.setStatus('warning', 'Connection failed, retrying...');
-                 Tube.connectTimer = setTimeout(function(){ Tube.connectionAttempts += 1; Tube.connect(); }, 4000+(Math.random()*1000));
-              }
+          Tube.users.reset();
+          Tube.userList = {};
+          if (Tube.connected) {
+            // Connection failed, retry
+            if (Tube.connectionAttempts > 10) {
+               Tube.setStatus('critical', 'Server down, try again later');
             } else {
-               Tube.connectionAttempts = 0;
+               Tube.setStatus('warning', 'Connection failed, retrying...');
+               Tube.connectTimer = setTimeout(function(){ Tube.connectionAttempts += 1; Tube.connect(); }, 4000+(Math.random()*1000));
             }
+          } else {
+             Tube.connectionAttempts = 0;
+          }
         };
         Tube.socket.onopen = function() {
             Tube.admin = false;
@@ -360,7 +375,6 @@
                 type: 'POST',
                 url: '/auth/socket_token',
                 success: function(data) {
-	                console.log('authed',data);
                     Tube.socket.sendJSON({
                         't': 'auth',
                         'auth_token': data.auth_token
@@ -368,14 +382,14 @@
                 },
                 error: function(xhr, status, error) {
                     if (error == 'Unauthorized') {
-						var name = Tube.tripcode ? Tube.tripcode : 'Anonymous'
+                      var name = Tube.tripcode ? Tube.tripcode : 'Anonymous'
 	                    Tube.socket.sendJSON({
 	                        't': 'auth',
 	                        'name': name
 	                    });
-					} else {
-					    Tube.socket.close();
-					}
+                    } else {
+                      Tube.socket.close();
+                    }
                 }
             });
         };
@@ -384,9 +398,9 @@
 	        if (message.api != Tube.api) {
 	           window.location.reload();
 	           return;
-            }
-            if (Tube.user)
-               Tube.user.unbind();
+          }
+          if (Tube.user)
+             Tube.user.unbind();
 	        Tube.user = new TubeUser(message.user);
 	        Tube.user.bind('change', function(){ console.log('WE CHANGED?!', this); });
             Tube.socket.sendJSON({
@@ -397,15 +411,14 @@
         };
         Tube.socket.onauthfailed = function(message) {
            if (message.reason == 'banned') {
-				Tube.setStatus('critical', 'You are banned from this channel');
-			} else {
-				Tube.setStatus('critical', 'Authorization failed');
-				console.log('OTHER REASON AUTH FAILED:', message);
-			}
-			
-			Tube.connected = false;
-			Tube.socket.close();
-		};
+             Tube.setStatus('critical', 'You are banned from this channel');
+           } else {
+             Tube.setStatus('critical', 'Authorization failed');
+             console.log('OTHER REASON AUTH FAILED:', message);
+           }
+           Tube.connected = false;
+           Tube.socket.close();
+        };
     };
     Tube.disconnect = function() {
         Tube.connected = false;
@@ -428,9 +441,8 @@
 
 // Entry
 $(document).ready(function() {
-    if (!$('#video'))
-    return;
-
+  function initVideo()
+  {
     $('#messageEntryBox').keypress(function(evt){
       if (evt.keyCode == 13) {
         if (evt.target.value.indexOf('/nick') == 0) {
@@ -442,19 +454,29 @@ $(document).ready(function() {
         }
         evt.target.value = '';
       }
-    })
+    });
 
     $('#playlistEntryBox').keypress(function(evt){
       if (evt.keyCode == 13) {
-      $.ajax({	
-            type: 'POST',
-            url: '/video',
-            data: {'uid': Tube.user.get('id'), 'channel_id': Tube.channel.get('id'), 'url': evt.target.value},
-            success: function(data) {
-                console.log('VIDEO ADDED',data);
-            }});
+        $.ajax({  
+              type: 'POST',
+              url: '/video',
+              data: {'uid': Tube.user.get('id'), 'channel_id': Tube.channel.get('id'), 'url': evt.target.value},
+              success: function(data) {
+                  console.log('VIDEO ADDED',data);
+              }});
         evt.target.value = '';
       }
     });
+  };
 
+  function initAdmin()
+  {
+    Tube.makeAdmin($('#adminroot'));
+  };
+
+  if ($('#video')[0])
+    initVideo();
+  else if ($('#adminroot')[0])
+    initAdmin();
 });

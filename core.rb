@@ -26,6 +26,7 @@ class App < Sinatra::Base
     'support/underscore-min.js',
     'support/backbone-min.js',
     'app.js',
+    'admin.js',
     'youtube.js',
     'blip.js',
     'chat.js',
@@ -67,6 +68,33 @@ class App < Sinatra::Base
     
     def get_channels
       @channels ||= Channel.all
+    end
+
+    def public_tabs
+      get_channels.map do |channel|
+        {:id => "chan_#{channel.id}".to_sym, :class => 'room', :name => channel.name, :href => channel.permalink||channel.id}
+      end
+    end
+
+    def admin_tabs
+      [{:id => :"admin", :class => 'admin', :name => 'Admin', :url => '/admin'},
+        {:id => :"admin_users", :class => 'admin', :name => 'Users', :url => '/admin/users'},
+          {:id => :"admin_bans", :class => 'admin', :name => 'Bans', :url => '/admin/bans'},
+          {:id => :"admin_channels", :class => 'admin', :name => 'Channels', :url => '/admin/channels'}] + get_channels.map do |channel|
+        {:id => :"chan_#{channel.id}", :class => 'room', :name => channel.name, :url => "/admin/channels/#{channel.permalink||channel.id}"}
+      end
+    end
+
+    def set_tab(the_tab)
+      puts "SET TAB: #{the_tab}<<"
+      @current_tab = the_tab
+    end
+
+    def get_tabs(list)
+      current = @current_tab
+      send(list).map do |tab|
+        "<li id=\"tab_#{tab[:id]}\" class=\"#{tab[:class]}\"><a href=\"#{tab[:url]}\" #{current == tab[:id] ? 'class="active"' : ''}>#{escape_html tab[:name]}</a></li>"
+      end.join('')
     end
   end
 
@@ -215,11 +243,14 @@ class App < Sinatra::Base
   
   # Admin panel
   
-  get '/admin' do
+  get '/admin*' do
     login_required
     return status(401) if !current_user.admin
     
-    erb :admin
+    if params[:splat].first =~ /\/?(.*)$/
+      @subpath = $1[-1] == '/' ? $1[0...-1] : $1
+    end
+    erb :admin, :layout => :'admin_layout'
   end
   
   # Enumerate connections, videos, ban count, historical figures, etc
@@ -231,50 +262,193 @@ class App < Sinatra::Base
   get '/users' do
     login_required
     return status(401) if !current_user.admin
+    
+    content_type :json
+    User.all.map(&:to_info).to_json
+  end
+  
+  post '/users' do
+    login_required
+    return status(401) if !current_user.admin
+    
+    content_type :json
+    
+    user = User.new(JSON.parse(request.body.read))
+    puts User.attr_accessible.inspect
+    puts user.inspect
+    if user.save
+      status 201
+      user.to_info(:admin => true).to_json
+    else
+      status 422
+      {:error => 'InvalidAttributes', :errors => user.errors}.to_json
+    end
   end
   
   get '/users/:id' do
     login_required
     return status(401) if !current_user.admin
+    
+    content_type :json
+    
+    user = User.find_by_id(params[:id])
+    if user
+      user.to_info(:admin => true).to_json
+    else
+      status 404
+      {:error => 'NotFound'}.to_json
+    end
   end
   
-  put '/user/:id' do
+  put '/users/:id' do
     login_required
     return status(401) if !current_user.admin
+    
+    content_type :json
+    jparams = JSON.parse(request.body.read)
+    p jparams.inspect
+    user = User.find_by_id(params[:id])
+    if user
+      if user.update_attributes(jparams)
+        user.to_info(:admin => true).to_json
+      else
+        status 422
+        {:error => 'InvalidAttributes'}.to_json
+      end
+    else
+      status 404
+      {:error => 'NotFound'}.to_json
+    end
+  end
+  
+  delete '/users/:id' do
+    login_required
+    return status(401) if !current_user.admin
+    
+    content_type :json
+    
+    user = User.find_by_id(params[:id])
+    if user
+      if user != current_user && User.all.count > 1
+        ban.destroy
+      else
+        status 406
+        {:error => 'EndOfWorld'}.to_json
+      end
+    else
+      status 404
+      {:error => 'NotFound'}.to_json
+    end
   end
   
   get '/bans' do
     login_required
+    return status(401) if !current_user.admin
+    
+    content_type :json
+    Ban.all.map(&:to_info).to_json
   end
   
   get '/ban/:id' do
     login_required
+    return status(401) if !current_user.admin
+    
+    content_type :json
+    
+    ban = Ban.find_by_id(params[:id])
+    if ban
+      ban.to_info(:admin => true).to_json
+    else
+      status 404
+      {:error => 'NotFound'}.to_json
+    end
   end
   
   put '/ban/:id' do
     login_required
+    return status(401) if !current_user.admin
+    
+    content_type :json
+    
+    ban = Ban.find_by_id(params[:id])
+    if ban
+      if ban.update_attributes(params[:ban])
+        ban.to_info(:admin => true).to_json
+      else
+        status 422
+        {:error => 'InvalidAttributes'}.to_json
+      end
+    else
+      status 404
+      {:error => 'NotFound'}.to_json
+    end
+  end
+
+  post '/bans' do
+    login_required
+    return status(401) if !current_user.admin
+
+    content_type :json
+
+    ban = Ban.new(JSON.parse(request.body.read))
+    if ban.save
+      status 201
+      ban.to_info(:admin => true).to_json
+    else
+      status 422
+      {:error => 'InvalidAttributes', :errors => ban.errors}.to_json
+    end
+  end
+  
+  delete '/ban/:id' do
+    login_required
+    return status(401) if !current_user.admin
+    
+    content_type :json
+    
+    ban = Ban.find_by_id(params[:id])
+    if ban
+      ban.destroy
+    else
+      status 404
+      {:error => 'NotFound'}.to_json
+    end
   end
   
   post '/channel' do
     login_required
     return status(401) if !current_user.admin
+    
+    content_type :json
+    
+    channel = Channel.new(params[:channel])
+    if channel.save
+      channel.to_info(:admin => true).to_json
+    else
+      status 422
+      {:error => 'InvalidAttributes'}.to_json
+    end
   end
   
   # Update channel info
   put '/channel' do
     login_required
+    return status(401) if !current_user.admin
+    
     content_type :json
+    
     channel = Channel.find_by_id(params[:channel_id])
     
-    response_data = {}
     if channel and channel.can_admin(current_user)
       if channel.update_attributes params[:channel]
-        
+        channel.to_info(:admin => true).to_json
       else
+        status 422
+        {:error => 'InvalidAttributes'}.to_json
       end
+    else
+      {:error => 'NotFound'}
     end
-    
-    response_data.to_json
   end
 end
 
@@ -285,6 +459,7 @@ dbconfig = YAML.load(File.read('config/database.yml'))
 #Time.zone = 'UTC'
 ActiveRecord::Base.time_zone_aware_attributes = true
 ActiveRecord::Base.default_timezone = :utc
+ActiveRecord::Base.logger = Logger.new(STDOUT)
 
 JSON.create_id = nil
 
