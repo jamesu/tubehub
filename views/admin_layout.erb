@@ -1,0 +1,36 @@
+<!DOCTYPE html> 
+<html lang='en' xml:lang='en' xmlns='http://www.w3.org/1999/xhtml'>
+<head>
+<title><%= @page_title || 'TestTube' %></title>
+<meta http-equiv="content-type" content="text/html;charset=UTF-8"/>
+<link href="/styles.css" media="screen" rel="stylesheet" type="text/css"/>
+<script type="text/javascript">WEB_SOCKET_SWF_LOCATION = '/WebSocketMain.swf';</script>
+<script type="text/javascript" src="/all.js"></script>
+</head>
+<body id="body" class="single">
+<div id="wrapper">
+  <div id="header">
+    <div id="headerInner">
+    <div id="topCrumbs"></div>
+    <div id="tabsWrapper"><ul>
+    <%= get_tabs(:admin_tabs) %>
+    </ul></div>
+    <div class="clear"></div>
+    </div>
+  </div>
+  <div id="outerWrapper">
+    <div id="innerWrapper">
+      <div id="pageContent">
+        <div id="content">
+        <div id="innerContent">
+          <%= yield %>
+        </div>
+        <div id="sidebar"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="footer"><div>Powered by TestTube</div></div>
+</div>
+</body>
+</html>
