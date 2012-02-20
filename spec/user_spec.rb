@@ -6,12 +6,12 @@ describe User do
   end
   
   it "should only allow assignment of :name, :nick, :password, :password_confirm" do
-    user = User.create!(:name => 'admin', :nick => 'admin', :password => 'password', :password_confirm => 'password', :super_admin => true)
+    user = User.create!(:name => 'admin', :nick => 'admin', :password => 'password', :password_confirm => 'password', :admin => true)
     user.name.should == 'admin'
     user.nick.should == 'admin'
     user.password.should == 'password'
     user.password_confirm.should == 'password'
-    user.super_admin.should == false
+    user.admin.should == false
   end
   
   it "should validate all fields on creation" do
@@ -66,7 +66,7 @@ describe User do
   it "should reveal admin to_info only when :admin=>true is passed" do
     user = User.create!(:name => 'admin', :nick => 'admin', :password => 'password', :password_confirm => 'password')
     user.to_info.should == {:id => user.id, :name => user.name, :nick => user.nick}
-    user.to_info(:admin => true).should == {:id => user.id, :name => user.name, :nick => user.nick, :created_at => user.created_at.to_i, :updated_at => user.updated_at.to_i, :super_admin => user.super_admin}
+    user.to_info(:admin => true).should == {:id => user.id, :name => user.name, :nick => user.nick, :created_at => user.created_at.to_i, :updated_at => user.updated_at.to_i, :admin => user.admin}
   end
   
   it "should authenticate users" do

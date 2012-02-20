@@ -11,7 +11,7 @@ describe SubscriberList do
     @channel2 = Channel.create!(:name => 'vop')
     
     @admin = User.create(:name => 'admin', :nick => 'admin', :password => 'password', :password_confirm => 'password')
-    @admin.update_attribute(:super_admin, true)
+    @admin.update_attribute(:admin, true)
     
     @chan_admin = User.create!(:name => 'mod', :nick => 'mod', :password => 'password', :password_confirm => 'password')
     @channel.admin_channels << @chan_admin

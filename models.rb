@@ -64,7 +64,7 @@ class User < ActiveRecord::Base
       base.merge!({
         :created_at => created_at.to_i,
         :updated_at => updated_at.to_i,
-        :super_admin => admin
+        :admin => admin
       })
     end
     

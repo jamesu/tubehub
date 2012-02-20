@@ -71,7 +71,7 @@ class App < Sinatra::Base
     end
     
     def get_admin_channels
-      current_user.super_admin ? get_channels : current_user.admin_channels
+      current_user.admin ? get_channels : current_user.admin_channels
     end
 
     def public_tabs
@@ -82,7 +82,7 @@ class App < Sinatra::Base
 
     def admin_tabs
       list = [{:id => :"admin", :class => 'admin', :name => 'Admin', :url => '/admin'}]
-      if current_user.super_admin
+      if current_user.admin
         list += [{:id => :"admin_users", :class => 'admin', :name => 'Users', :url => '/admin/users'},
           {:id => :"admin_bans", :class => 'admin', :name => 'Bans', :url => '/admin/bans'},
           {:id => :"admin_channels", :class => 'admin', :name => 'Channels', :url => '/admin/channels'}]

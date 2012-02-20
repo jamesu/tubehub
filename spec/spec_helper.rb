@@ -59,7 +59,7 @@ class FakeConnection
     end
     
     if @scope.nil?
-      if @current_user && @current_user.super_admin
+      if @current_user && @current_user.admin
         @scope = 'sumin'
       elsif @current_user && channel.admin_channels.include?(@current_user)
         @scope = 'admin'

@@ -8,7 +8,6 @@ class MoreModeration < ActiveRecord::Migration
     
     add_column :users, :nick, :string
     add_column :users, :eval_nick, :string
-    add_column :users, :super_admin, :boolean, :default => false
     
     add_index :users, :nick
     
@@ -35,7 +34,6 @@ class MoreModeration < ActiveRecord::Migration
     
     remove_column :users, :nick
     remove_column :users, :eval_nick
-    remove_column :users, :super_admin
     
     drop_table :channel_admins
     drop_table :moderators

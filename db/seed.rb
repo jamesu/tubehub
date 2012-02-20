@@ -1,5 +1,5 @@
 admin = User.create!(:name => 'admin', :nick => 'admin', :password => 'password', :password_confirm => 'password')
-admin.update_attribute(:super_admin, true)
+admin.update_attribute(:admin, true)
 channel = Channel.create!(:name => 'Welcome to TubeHub', :user_id => admin.id)
 
 
