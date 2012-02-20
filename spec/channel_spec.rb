@@ -16,7 +16,6 @@ describe Channel do
     Timecop.return
   end
 
-
   describe "an instance" do
     before do
       @channel = Channel.create!(:name => 'v4c')
@@ -52,19 +51,89 @@ describe Channel do
       end
     end
 
-    it "should go to the correct next_video!" do
+    it "next_video! should advance to the next playlist item" do
+      @video.update_attribute(:channel_id, @channel.id)
+      @channel.play_item(@video)
+      
+      # Add stuff to the playlist
+      @channel.add_video({:video_id => '123', :provider => 'dummy'}, :grab_metadata => false)
+      @channel.add_video({:video_id => '456', :provider => 'dummy'}, :grab_metadata => false)
+      
+      @channel.videos.length.should == 3
+      
+      @channel.current_video.url.should == 'H0MwvOJEBOM'
+      @channel.next_video!
+      @channel.current_video.url.should == '123'
+      @channel.next_video!
+      @channel.current_video.url.should == '456'
+    end
+    
+    it "next_video! should not advance to the next video if there are no playlist items" do
+      @video.update_attribute(:channel_id, @channel.id)
+      @channel.play_item(@video)
+      
+      @channel.videos.length.should == 1
+      
+      @channel.next_video!
+      @channel.current_video.url.should == 'H0MwvOJEBOM'
     end
 
     it "should play_item existing videos in the playlist, clearing the current non-playlist video" do
+      # Add stuff to the playlist
+      @channel.add_video({:video_id => '123', :provider => 'dummy'}, :grab_metadata => false)
+      @channel.add_video({:video_id => '456', :provider => 'dummy'}, :grab_metadata => false)
+      @channel.reload.videos.length.should == 2
+      @channel.videos.map(&:url).should == ['123', '456']
     end
 
-    it "add_view method should add a new video on the end of the playlist" do
+    it "add_video method should add a new video on the end of the playlist" do
+      # Add stuff to the playlist
+      @channel.add_video({:video_id => '123', :provider => 'dummy'}, :grab_metadata => false)
+      @channel.add_video({:video_id => '456', :provider => 'dummy'}, :grab_metadata => false)
+      @channel.reload.videos.length.should == 2
+      @channel.videos.last.url.should == '456'
     end
 
-    it "quickplay_video method should add and instantly play an new video, or update the existing non-playlist one" do
+    it "quickplay_video method should add and instantly play a new video, replacing non-playlist items" do
+      @video.update_attribute(:channel_id, @channel.id)
+      @channel.play_item(@video)
+      @channel.current_video.should == @video
+      
+      @channel.quickplay_video({:video_id => '123', :provider => 'dummy'}, Time.now.utc, :grab_metadata => false)
+      @channel.current_video.url.should == '123'
+      @channel.current_video.id.should == @video.id
+    end
+
+    it "quickplay_video method should add and instantly play an new video, not replacing playlist items" do
+      @video.update_attribute(:channel_id, @channel.id)
+      @video.update_attribute(:playlist, true)
+      @channel.play_item(@video)
+      @channel.current_video.should == @video
+      
+      @channel.quickplay_video({:video_id => '123', :provider => 'dummy'}, Time.now.utc, :grab_metadata => false)
+      @channel.current_video.url.should == '123'
+      @channel.current_video.id.should_not == @video.id
     end
 
     it "should notify SUBSCRIPTIONS of changes to the current video and time" do
+      @video.update_attribute(:channel_id, @channel.id)
+      @video.update_attribute(:playlist, true)
+      @channel.play_item(@video)
+      
+      start = @channel.start_time
+      Timecop.freeze(start) do
+        SUBSCRIPTIONS.should_receive(:send_message).with(@channel.id, 'video_time', {"time"=>60.0})
+        @channel.delta_start_time!(60)
+      end
+    end
+  end
+
+  # TODO: implement timer
+  describe "timer" do
+    it "should advance the current video playlist" do
+    end
+
+    it "should not advance the current video if there are no videos" do
     end
   end
 end

@@ -6,13 +6,16 @@ class User < ActiveRecord::Base
   
   has_and_belongs_to_many :admin_channels, :class_name => 'Channel', :join_table => 'channel_admins'
   
-  attr_accessible :name, :password, :password_confirm
+  attr_accessible :name, :nick, :password, :password_confirm
   
   validates_presence_of :name
+  validates_presence_of :nick
   validates_uniqueness_of :name
+  validates_uniqueness_of :nick
   validates_presence_of :password, :on => :create
   
   validate :check_password
+  before_save :generate_eval_nick
   
   def check_password
     if @password_confirm != @password
@@ -32,14 +35,22 @@ class User < ActiveRecord::Base
     end
   end
   
-  def generate_auth_token!
+  def generate_auth_token
     tnow = Time.now()
     sec = tnow.tv_usec
     usec = tnow.tv_usec % 0x100000
     rval = rand()
     roffs = rand(25)
     self[:auth_token] = Digest::SHA1.hexdigest(Digest::SHA1.hexdigest(sprintf("%s%08x%05x%.8f", rand(32767), sec, usec, rval))[roffs..roffs+12])
+  end
+  
+  def generate_auth_token!
+    generate_auth_token
     save!
+  end
+  
+  def generate_eval_nick
+    self[:eval_nick] = Tripcode.encode(nick).join('') if nick_changed? or new_record?
   end
   
   def to_info(options={})
@@ -51,8 +62,8 @@ class User < ActiveRecord::Base
     
     if options[:admin]
       base.merge!({
-        :created_at => created_at,
-        :updated_at => updated_at,
+        :created_at => created_at.to_i,
+        :updated_at => updated_at.to_i,
         :super_admin => admin
       })
     end
@@ -148,7 +159,7 @@ class Channel < ActiveRecord::Base
   end
   
   # Plays video info, grabs metadata later
-  def quickplay_video(video_info, from=Time.now.utc)
+  def quickplay_video(video_info, from=Time.now.utc, options={})
     video = if current_video and !current_video.playlist
       @video_changed = video_info[:video_id] != current_video.url
       current_video
@@ -160,7 +171,7 @@ class Channel < ActiveRecord::Base
     video.attributes = {:url => video_info[:video_id], :provider => video_info[:provider]}
     video_saved = video.save
     
-    video.grab_metadata
+    video.grab_metadata unless options[:no_metadata]
     
     new_time = video_info[:time]||0
     self.current_video = video if video_saved
@@ -314,6 +325,7 @@ class Video < ActiveRecord::Base
      'position' => position,
      'added_by' => added_by}
     base['added_by_ip'] = added_by_ip if options[:mod]
+    base
   end
   
   def set_update_info

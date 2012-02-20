@@ -8,7 +8,8 @@ BASE_VIDEO_INFO =
      'title' => 'HOW 2 DRAW SANIC HEGEHOG',
      'duration' => 0,
      'playlist' => false,
-     'position' => nil}
+     'position' => nil,
+     'added_by' => 'Anonymous'}
 
 describe Video do
   before(:each) do
@@ -58,7 +59,8 @@ describe Video do
       video = Video.new(:channel_id => channel.id,
                             :title => BASE_VIDEO_INFO['title'],
                             :url => BASE_VIDEO_INFO['url'],
-                            :provider => BASE_VIDEO_INFO['provider'])
+                            :provider => BASE_VIDEO_INFO['provider'],
+                            :added_by => BASE_VIDEO_INFO['added_by'])
       video.id = 1
       video.save
     end
@@ -68,7 +70,8 @@ describe Video do
       video = Video.new(:channel_id => channel.id,
                             :title => BASE_VIDEO_INFO['title'],
                             :url => BASE_VIDEO_INFO['url'],
-                            :provider => BASE_VIDEO_INFO['provider'])
+                            :provider => BASE_VIDEO_INFO['provider'],
+                            :added_by => BASE_VIDEO_INFO['added_by'])
       video.id = 1
       video.save
 
@@ -83,7 +86,8 @@ describe Video do
       video = Video.new(:channel_id => channel.id,
                             :title => BASE_VIDEO_INFO['title'],
                             :url => BASE_VIDEO_INFO['url'],
-                            :provider => BASE_VIDEO_INFO['provider'])
+                            :provider => BASE_VIDEO_INFO['provider'],
+                            :added_by => BASE_VIDEO_INFO['added_by'])
       video.id = 1
       video.save
 

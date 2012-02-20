@@ -69,6 +69,10 @@ class App < Sinatra::Base
     def get_channels
       @channels ||= Channel.all
     end
+    
+    def get_admin_channels
+      current_user.super_admin ? get_channels : current_user.admin_channels
+    end
 
     def public_tabs
       get_channels.map do |channel|
@@ -77,16 +81,19 @@ class App < Sinatra::Base
     end
 
     def admin_tabs
-      [{:id => :"admin", :class => 'admin', :name => 'Admin', :url => '/admin'},
-        {:id => :"admin_users", :class => 'admin', :name => 'Users', :url => '/admin/users'},
+      list = [{:id => :"admin", :class => 'admin', :name => 'Admin', :url => '/admin'}]
+      if current_user.super_admin
+        list += [{:id => :"admin_users", :class => 'admin', :name => 'Users', :url => '/admin/users'},
           {:id => :"admin_bans", :class => 'admin', :name => 'Bans', :url => '/admin/bans'},
-          {:id => :"admin_channels", :class => 'admin', :name => 'Channels', :url => '/admin/channels'}] + get_channels.map do |channel|
+          {:id => :"admin_channels", :class => 'admin', :name => 'Channels', :url => '/admin/channels'}]
+      end
+      list += get_admin_channels.map do |channel|
         {:id => :"chan_#{channel.id}", :class => 'room', :name => channel.name, :url => "/admin/channels/#{channel.permalink||channel.id}"}
       end
+      list
     end
 
     def set_tab(the_tab)
-      puts "SET TAB: #{the_tab}<<"
       @current_tab = the_tab
     end
 
@@ -204,7 +211,6 @@ class App < Sinatra::Base
     puts "POST VIDEO"
     response_data = {}
     if channel# and channel.video_can_be_added_by(current_user)
-      puts "ALRIGHT...."
       video = channel.add_video(Video.get_playback_info(params[:url]))
       response_data = video.to_info if video
     end
@@ -459,7 +465,7 @@ dbconfig = YAML.load(File.read('config/database.yml'))
 #Time.zone = 'UTC'
 ActiveRecord::Base.time_zone_aware_attributes = true
 ActiveRecord::Base.default_timezone = :utc
-ActiveRecord::Base.logger = Logger.new(STDOUT)
+ActiveRecord::Base.logger = Logger.new(STDOUT)# unless ENV["RACK_ENV"] == 'test'
 
 JSON.create_id = nil
 
