@@ -242,10 +242,14 @@ class App < Sinatra::Base
   
   # Token for socket identification
   post '/auth/socket_token' do
-    login_required
-    current_user.generate_auth_token!
-    content_type :json
-    {:auth_token => current_user.auth_token}.to_json
+    if current_user
+      current_user.generate_auth_token!
+      content_type :json
+      {:auth_token => current_user.auth_token}.to_json
+    else
+      content_type :json
+      {}.to_json
+    end
   end
   
   # Admin panel

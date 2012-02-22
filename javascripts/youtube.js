@@ -27,10 +27,10 @@ YoutubeHandler.prototype.onReady = function() {
     }
 
     // Listen for changes if we are controlling
-    if (Tube.admin) {
+    //if (Tube.admin) {
         this.control.addEventListener("onStateChange", 'HandleYouTubeStateChange');
         this.control.addEventListener("onError", 'HandleYouTubeError');
-    }
+    //}
 };
 YoutubeHandler.prototype.play = function() {
     if (this.control) {

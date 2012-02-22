@@ -178,7 +178,15 @@ $.fn.serializeObject = function()
         //}
     });
 
-    Tube.users.bind('refresh', function(err) { console.log('USER REFRESH',err);});
+    Tube.users.bind('reset', function(users) { 
+      $('#userList').empty();
+      users.each(function(user){
+          var item = new TubeUserItem({model: user, id:'list_' + user.get('id')});
+          $('#userList').append(item.render().el);
+
+          user.bind('change', function(model){ item.render() });
+      });
+    });
 
     Tube.users.bind('remove', function(user){
       var item = $('#list_' + user.get('id'));
@@ -232,7 +240,8 @@ $.fn.serializeObject = function()
     };
     Tube.setTime = function(newTime) {
         if (this.video) {
-            this.offsetTime = (new Date()) - newTime;
+            console.log('START TIME:', newTime)
+            this.offsetTime = (new Date()) - (newTime*1000);
             this.video.seek(newTime);
         }
     };
@@ -252,14 +261,22 @@ $.fn.serializeObject = function()
             }
         }
         this.video.setVideo(id, startTime, force);
-        this.offsetTime = (new Date()) - startTime;
+        this.offsetTime = (new Date()) - (startTime*1000);
     };
     Tube.onTimeChange = function(newTime) {
-        Tube.socket.sendJSON({
-            't': 'video_time',
-            'channel_id': Tube.channel.get('id'),
-            'time': newTime
-        });
+        if (Tube.admin) {
+          Tube.socket.sendJSON({
+              't': 'video_time',
+              'channel_id': Tube.channel.get('id'),
+              'time': newTime
+          });
+        } else {
+          var currentTime = ((new Date()) - Tube.offsetTime) / 1000.0;
+          if ((newTime - currentTime < -Tube.video.timeMargin) || (newTime - currentTime > Tube.video.timeMargin)) {
+            console.log('non admin time change', ((new Date()) - Tube.offsetTime) / 1000.0);
+            Tube.setTime(((new Date()) - Tube.offsetTime) / 1000.0);
+          }
+        }
     };
     Tube.onNewVideo = function(url, time) {
       Tube.socket.sendJSON({'t': 'video', 'url': url, 'time': time, 'channel_id': Tube.channel.get('id'), 'provider': this.video.provider});
@@ -314,7 +331,7 @@ $.fn.serializeObject = function()
                 Tube.users.add(message.user);
                 user = Tube.users.get(message.user.id);
                 if (Tube.user.get('id') == message.user.id) {
-                  Tube.admin = (message['scope'] || []).indexOf('admin') >= 0;
+                  Tube.admin = message['scope'] != '';
 
                     // TODO: use the binding to update this
                   $('#playlistContainer').addClass('editable');
