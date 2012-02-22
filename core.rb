@@ -516,7 +516,11 @@ dbconfig = YAML.load(File.read('config/database.yml'))
 #Time.zone = 'UTC'
 ActiveRecord::Base.time_zone_aware_attributes = true
 ActiveRecord::Base.default_timezone = :utc
-ActiveRecord::Base.logger = Logger.new(STDOUT)# unless ENV["RACK_ENV"] == 'test'
+if ENV["RACK_ENV"] == 'test'
+  ActiveRecord::Base.logger = Logger.new(File.open('test.log', 'w'))
+else
+  ActiveRecord::Base.logger = Logger.new(STDOUT)
+end
 
 JSON.create_id = nil
 
