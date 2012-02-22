@@ -19,7 +19,7 @@ module Tripcode
       trippart = trippart.sub(TRIP_SECURE_REGEXP, '')
       if $1
         # Secure tripcode
-        puts "ITS SECURE (P=#{trippart},ch=#{$1})"
+        #puts "ITS SECURE (P=#{trippart},ch=#{$1})"
         trip = '!' + '!' + secure_encode($1[0..255], 6, "trip", TRIP_SECRET)
 
         return [name,trip] if trippart.empty?

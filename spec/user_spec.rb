@@ -5,13 +5,30 @@ describe User do
     User.delete_all
   end
   
-  it "should only allow assignment of :name, :nick, :password, :password_confirm" do
-    user = User.create!(:name => 'admin', :nick => 'admin', :password => 'password', :password_confirm => 'password', :admin => true)
-    user.name.should == 'admin'
-    user.nick.should == 'admin'
-    user.password.should == 'password'
-    user.password_confirm.should == 'password'
+  it "should only allow assignment of :name, :nick, :password, :password_confirm when user is a normal user" do
+    user = User.create!(:name => 'user', :nick => 'user', :password => 'password', :password_confirm => 'password')
     user.admin.should == false
+    admin = User.new(:name => 'admin', :nick => 'admin', :password => 'password', :password_confirm => 'password', :admin => true)
+    admin.updated_by = user
+    admin.name.should == 'admin'
+    admin.nick.should == 'admin'
+    admin.password.should == 'password'
+    admin.password_confirm.should == 'password'
+    admin.save
+    admin.admin.should == false
+    User.find_by_id(admin.id).admin.should == false
+  end
+  
+  it "should allow assignment of :admin only when updated_by is an admin or nil" do
+    # nil
+    admin = User.create!(:name => 'admin', :nick => 'admin', :password => 'password', :password_confirm => 'password', :admin => true)
+    admin.admin.should == true
+    # == admin
+    user = User.create!(:name => 'user', :nick => 'user', :password => 'password', :password_confirm => 'password')
+    user.updated_by = admin
+    user.admin = true
+    user.save
+    User.find_by_id(user.id).admin.should == true
   end
   
   it "should validate all fields on creation" do

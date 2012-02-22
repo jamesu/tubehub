@@ -3,10 +3,11 @@ class User < ActiveRecord::Base
   before_validation :update_tokens
   attr_accessor :password, :password_confirm
   attr_accessor :last_set_time
+  attr_accessor :updated_by
   
   has_and_belongs_to_many :admin_channels, :class_name => 'Channel', :join_table => 'channel_admins'
   
-  attr_accessible :name, :nick, :password, :password_confirm
+  attr_accessible :name, :nick, :password, :password_confirm, :admin
   
   validates_presence_of :name
   validates_presence_of :nick
@@ -15,7 +16,7 @@ class User < ActiveRecord::Base
   validates_presence_of :password, :on => :create
   
   validate :check_password
-  before_save :generate_eval_nick
+  before_save :update_state
   
   def check_password
     if @password_confirm != @password
@@ -49,8 +50,18 @@ class User < ActiveRecord::Base
     save!
   end
   
-  def generate_eval_nick
+  def admin
+    @new_admin || self[:admin]
+  end
+  
+  def admin=(value)
+    @new_admin = value
+  end
+  
+  def update_state
     self[:eval_nick] = Tripcode.encode(nick).join('') if nick_changed? or new_record?
+    self[:admin] = @new_admin if !@new_admin.nil? and (@updated_by.nil? or @updated_by.try(:admin) == true)
+    @new_admin = nil
   end
   
   def to_info(options={})
@@ -90,6 +101,8 @@ class Channel < ActiveRecord::Base
   
   before_update :set_update_info
   after_update :notify_updates
+  
+  attr_accessible :name, :permalink, :banner, :footer
   
   # Update to new time (e.g. when user has manipulated slider)
   def delta_start_time!(new_time, from=Time.now.utc)
@@ -202,7 +215,7 @@ class Channel < ActiveRecord::Base
   end
   
   def can_admin(current_user)
-    current_user.id == user_id
+    current_user.admin || admin_channels.include?(current_user)
   end
   
   def video_can_be_added_by(current_user)
@@ -220,12 +233,17 @@ class Channel < ActiveRecord::Base
       :created_at => created_at.to_i,
       :updated_at => updated_at.to_i,
       :start_time => start_time.to_i,
-      :current_video => current_video.to_info(options)
+      :current_video => current_video ? current_video.to_info(options) : nil
     }
     
-    if options[:full]
-      options[:header] = header
-      options[:fooer] = footer
+    if options[:admin]
+      base[:admin_users] = admin_channels.map(&:id)
+      base[:moderators] = moderators.map(&:name)
+    end
+    
+    if options[:full] or options[:admin]
+      base[:banner] = banner
+      base[:fooer] = footer
     end
     
     base
@@ -354,19 +372,23 @@ class Moderator < ActiveRecord::Base
 end
 
 class Ban < ActiveRecord::Base
-  attr_accessible :ip, :created_at, :ended_at, :comment, :banned_by, :banned_by_ip
+  attr_accessible :ip, :created_at, :ended_at, :comment, :banned_by, :banned_by_ip, :duration
   
   def duration
     ended_at - (created_at||Time.now.utc)
   end
   
   def duration=(value)
-    self[:ended_at] = Time.now.utc + value
+    if value < 0
+      self[:ended_at] = nil
+    else
+      self[:ended_at] = Time.now.utc + value
+    end
   end 
   
   def self.find_active_by_ip(ip)
     ban = Ban.order('ended_at').where(:ip => ip).last
-    if ban.nil? or ban.ended_at.nil? or ban.ended_at < Time.now.utc
+    if ban.nil? or (!ban.ended_at.nil? and ban.ended_at < Time.now.utc)
       nil
     else
       ban
@@ -374,13 +396,18 @@ class Ban < ActiveRecord::Base
   end
   
   def to_info(options={})
-    {'id' => id,
+    base = {'id' => id,
      'ip' => ip,
      'created_at' => created_at.to_i,
      'ended_at' => ended_at.to_i,
-     'comment' => comment,
-     'banned_by' => banned_by,
-     'banned_by_ip' => banned_by_ip}
+     'comment' => comment}
+    
+    if options[:admin]
+     base['banned_by'] = banned_by
+     base['banned_by_ip'] = banned_by_ip
+    end
+    
+    base
   end
 end
 

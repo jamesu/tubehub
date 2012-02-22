@@ -14,6 +14,18 @@ RSpec.configure do |c|
   c.include RSpecMixin
 end
 
+def mock_session(env={})
+  {'rack.session' => env}
+end
+
+def mock_login(user)
+  {:user_id => user.id}
+end
+
+def mock_login_session(user)
+  mock_session(mock_login(user))
+end
+
 # Disable send_data for mocking
 class WebSocketApp < Rack::WebSocket::Application
   def send_data(data)

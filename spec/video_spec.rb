@@ -54,13 +54,18 @@ describe Video do
   describe "an instance" do
     it "should notify SUBSCRIPTIONS of creation" do
       channel = Channel.create!(:name => 'v4c')
-      SUBSCRIPTIONS.should_receive(:send_message).with(channel.id, 'playlist_video', BASE_VIDEO_INFO)
-
       video = Video.new(:channel_id => channel.id,
                             :title => BASE_VIDEO_INFO['title'],
                             :url => BASE_VIDEO_INFO['url'],
                             :provider => BASE_VIDEO_INFO['provider'],
                             :added_by => BASE_VIDEO_INFO['added_by'])
+      
+      SUBSCRIPTIONS.should_receive(:send_message) do |cid, ct, info|
+        cid.should == channel.id
+        ct.should == 'playlist_video'
+        info.should == video.to_info
+      end
+      
       video.id = 1
       video.save
     end
@@ -74,8 +79,12 @@ describe Video do
                             :added_by => BASE_VIDEO_INFO['added_by'])
       video.id = 1
       video.save
-
-      SUBSCRIPTIONS.should_receive(:send_message).with(channel.id, 'playlist_video', BASE_VIDEO_INFO.merge('title' => 'Modified Name'))
+      
+      SUBSCRIPTIONS.should_receive(:send_message) do |cid, ct, info|
+        cid.should == channel.id
+        ct.should == 'playlist_video'
+        info.should == video.to_info
+      end
 
       video.title = 'Modified Name'
       video.save!

@@ -111,6 +111,7 @@ class App < Sinatra::Base
     erb :channel_index
   end
   
+  # Global channel display
   get '/r/:id' do
     # Display the first channel for now
     @channel = Channel.find_by_id(params[:id])
@@ -265,14 +266,16 @@ class App < Sinatra::Base
     return status(401) if !current_user.admin
   end
   
+  # Get users
   get '/users' do
     login_required
     return status(401) if !current_user.admin
     
     content_type :json
-    User.all.map(&:to_info).to_json
+    User.all.map{|u| u.to_info(:admin => true)}.to_json
   end
   
+  # Create a user
   post '/users' do
     login_required
     return status(401) if !current_user.admin
@@ -280,8 +283,7 @@ class App < Sinatra::Base
     content_type :json
     
     user = User.new(JSON.parse(request.body.read))
-    puts User.attr_accessible.inspect
-    puts user.inspect
+    user.updated_by = current_user
     if user.save
       status 201
       user.to_info(:admin => true).to_json
@@ -291,9 +293,10 @@ class App < Sinatra::Base
     end
   end
   
+  # Get user info
   get '/users/:id' do
     login_required
-    return status(401) if !current_user.admin
+    return status(401) if !current_user.admin and current_user.id != params[:id].to_i
     
     content_type :json
     
@@ -306,20 +309,20 @@ class App < Sinatra::Base
     end
   end
   
+  # Update a user
   put '/users/:id' do
     login_required
-    return status(401) if !current_user.admin
+    return status(401) if !current_user.admin and current_user.id != params[:id].to_i
     
     content_type :json
-    jparams = JSON.parse(request.body.read)
-    p jparams.inspect
     user = User.find_by_id(params[:id])
     if user
-      if user.update_attributes(jparams)
+      user.updated_by = current_user
+      if user.update_attributes(JSON.parse(request.body.read))
         user.to_info(:admin => true).to_json
       else
         status 422
-        {:error => 'InvalidAttributes'}.to_json
+        {:error => 'InvalidAttributes', :errors => user.errors}.to_json
       end
     else
       status 404
@@ -327,6 +330,7 @@ class App < Sinatra::Base
     end
   end
   
+  # Delete a user
   delete '/users/:id' do
     login_required
     return status(401) if !current_user.admin
@@ -336,7 +340,7 @@ class App < Sinatra::Base
     user = User.find_by_id(params[:id])
     if user
       if user != current_user && User.all.count > 1
-        ban.destroy
+        user.destroy
       else
         status 406
         {:error => 'EndOfWorld'}.to_json
@@ -347,6 +351,7 @@ class App < Sinatra::Base
     end
   end
   
+  # Get bans
   get '/bans' do
     login_required
     return status(401) if !current_user.admin
@@ -355,7 +360,8 @@ class App < Sinatra::Base
     Ban.all.map(&:to_info).to_json
   end
   
-  get '/ban/:id' do
+  # Get a ban
+  get '/bans/:id' do
     login_required
     return status(401) if !current_user.admin
     
@@ -370,7 +376,8 @@ class App < Sinatra::Base
     end
   end
   
-  put '/ban/:id' do
+  # Update bans
+  put '/bans/:id' do
     login_required
     return status(401) if !current_user.admin
     
@@ -378,11 +385,11 @@ class App < Sinatra::Base
     
     ban = Ban.find_by_id(params[:id])
     if ban
-      if ban.update_attributes(params[:ban])
+      if ban.update_attributes(JSON.parse(request.body.read))
         ban.to_info(:admin => true).to_json
       else
         status 422
-        {:error => 'InvalidAttributes'}.to_json
+        {:error => 'InvalidAttributes', :errors => ban.errors}.to_json
       end
     else
       status 404
@@ -390,6 +397,7 @@ class App < Sinatra::Base
     end
   end
 
+  # Create a ban
   post '/bans' do
     login_required
     return status(401) if !current_user.admin
@@ -406,7 +414,8 @@ class App < Sinatra::Base
     end
   end
   
-  delete '/ban/:id' do
+  # Delete a ban
+  delete '/bans/:id' do
     login_required
     return status(401) if !current_user.admin
     
@@ -421,32 +430,58 @@ class App < Sinatra::Base
     end
   end
   
-  post '/channel' do
+  # Create a channel
+  post '/channels' do
     login_required
     return status(401) if !current_user.admin
     
     content_type :json
     
-    channel = Channel.new(params[:channel])
+    channel = Channel.new(JSON.parse(request.body.read))
     if channel.save
+      status 201
       channel.to_info(:admin => true).to_json
     else
       status 422
-      {:error => 'InvalidAttributes'}.to_json
+      {:error => 'InvalidAttributes', :errors => channel.errors}.to_json
+    end
+  end
+  
+  # List channels
+  get '/channels' do
+    login_required
+    
+    content_type :json
+    Channel.all.map{|c|c.to_info(:full => true)}.to_json
+  end
+  
+  # Get channel info
+  get '/channels/:id' do
+    login_required
+    return status(401) if !current_user.admin
+    
+    content_type :json
+    
+    channel = Channel.find_by_id(params[:id])
+    if channel
+      channel.to_info(:admin => true).to_json
+    else
+      status 404
+      {:error => 'NotFound'}.to_json
     end
   end
   
   # Update channel info
-  put '/channel' do
+  put '/channels/:id' do
     login_required
     return status(401) if !current_user.admin
     
     content_type :json
     
-    channel = Channel.find_by_id(params[:channel_id])
+    channel = Channel.find_by_id(params[:id])
     
     if channel and channel.can_admin(current_user)
-      if channel.update_attributes params[:channel]
+      if channel.update_attributes(JSON.parse(request.body.read))
         channel.to_info(:admin => true).to_json
       else
         status 422
@@ -454,6 +489,22 @@ class App < Sinatra::Base
       end
     else
       {:error => 'NotFound'}
+    end
+  end
+  
+  # Delete a channel
+  delete '/channels/:id' do
+    login_required
+    return status(401) if !current_user.admin
+    
+    content_type :json
+    
+    channel = Channel.find_by_id(params[:id])
+    if channel
+      channel.destroy
+    else
+      status 404
+      {:error => 'NotFound'}.to_json
     end
   end
 end
