@@ -149,6 +149,9 @@ $.fn.serializeObject = function()
         .attr('video_id', item.get('id'));
         inner.children('.title').text(item.get('title'));
         inner.children('.time').text(Tube.parseDuration(item.get('duration')));
+        
+        if (Tube.video_id == item.get('id'))
+          el.addClass('active');
 
         return this;
       }
@@ -248,7 +251,14 @@ $.fn.serializeObject = function()
             this.video.seek(newTime);
         }
     };
-    Tube.setVideo = function(id, startTime, provider, force) {
+    Tube.setVideo = function(opts) {
+        var id = opts.id;
+        var url = opts.url;
+        var startTime = opts.startTime;
+        var provider = opts.provider;
+        var force = opts.force;
+        
+        console.log(id, url, startTime, provider, force)
         if (this.video == null || this.video.provider != provider) {
             if (this.video) {
                 this.video.stop();
@@ -263,8 +273,20 @@ $.fn.serializeObject = function()
               return;
             }
         }
-        this.video.setVideo(id, startTime, force);
+        this.video_id = id;
+        this.video.setVideo(url, startTime, force);
         this.offsetTime = (new Date()) - (startTime*1000);
+        this.onSetVideo(opts);
+    };
+    Tube.onSetVideo = function(video) {
+      $('#videoTitle').text(video.title);
+      $('#playlist .item').removeClass('active');
+      
+      console.log('onSetVideo', video)
+      if (video.id) {
+        console.log('#playlist_video_' + video.id);
+        $('#playlist_video_' + video.id).addClass('active');
+      }
     };
     Tube.onTimeChange = function(newTime) {
         if (Tube.admin) {
@@ -282,7 +304,9 @@ $.fn.serializeObject = function()
         }
     };
     Tube.onNewVideo = function(url, time) {
-      Tube.socket.sendJSON({'t': 'video', 'url': url, 'time': time, 'channel_id': Tube.channel.get('id'), 'provider': this.video.provider});
+      $('#videoTitle').text(url);
+      if (Tube.admin)
+        Tube.socket.sendJSON({'t': 'video', 'url': url, 'time': time, 'channel_id': Tube.channel.get('id'), 'provider': this.video.provider});
     };
     Tube.onVideoFinished = function() {
       Tube.socket.sendJSON({'t': 'video_finished', 'channel_id': Tube.channel.get('id')});
@@ -356,7 +380,7 @@ $.fn.serializeObject = function()
                 Tube.removePlaylistItem(message);
             } else if (message.t == 'video') {
                 if (!Tube.admin || Tube.video == null || message.force) {
-                    Tube.setVideo(message.url, message.time, message.provider, message.force);
+                  Tube.setVideo(message);
                 }
             } else if (message.t == 'video_time') {
                 // Set the time of the video, ignoring minor offsets
