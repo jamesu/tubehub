@@ -33,6 +33,9 @@ $.fn.serializeObject = function()
         playlist: null,
 
         tripcode: null, // authentication tripcode
+        
+        Views: {},
+        Models: {}
     };
 
     // Models

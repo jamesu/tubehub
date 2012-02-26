@@ -1,7 +1,11 @@
 <% set_tab :"chan_#{@channel.id}" %>
 <h1><%= @channel.name %></h1>
+<div id="chan_banner">
+<%= @channel.banner %>
+</div>
 <div id="status">
 </div>
+<div id="videoTitle"></div>
 <div id="videoContainer">
 	<div id="overlaycanvas">
 	</div>
@@ -26,6 +30,9 @@
 	<input id="messageEntryBox" name="message" value="" type="text" tabindex="1" class="medium" size="50"/>
 </div>
 </div>
+</div>
+<div id="chan_footer">
+<%= @channel.footer %>
 </div>
 <div id="debug">
 </div>

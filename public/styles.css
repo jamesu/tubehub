@@ -492,6 +492,10 @@ label.check {
 	font-weight: bold;
 }
 
+#playlist .item.active {
+  background-color: #ffffff;
+}
+
 #playlist .item .title {
 }
 
@@ -521,6 +525,12 @@ label.check {
   float: left;
   position: absolute;
   //overflow: hidden;
+}
+
+#videoTitle {
+  font-weight: bold;
+  font-size: 14px;
+  width: 425px;
 }
 
 #messages .um {
@@ -560,6 +570,11 @@ label.check {
 	display: block;
 }
 
+.delete {
+  color: red;
+  font-weight: bold;
+}
+
 .adminsection {
   background: #000000;
   color: #ffffff;
@@ -568,3 +583,30 @@ label.check {
   padding: 0 6px;
 }
 
+input.error {
+  border: 2px solid red;
+}
+
+textarea.error {
+  border: 2px solid red;
+}
+
+.error_field {
+  color: red;
+  font-weight: bold;
+}
+
+.user_row, .ban_row, .chan_row {
+  padding: 6px 4px;
+  border-bottom: 1px solid #cccccc;
+}
+
+.user_row span, .ban_row span, .chan_row span {
+  padding-right: 3px;
+}
+
+
+.ban_form, .user_form {
+  border: 2px solid #000000;
+  padding: 6px 4px;
+}

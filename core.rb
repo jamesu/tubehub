@@ -76,7 +76,7 @@ class App < Sinatra::Base
 
     def public_tabs
       get_channels.map do |channel|
-        {:id => "chan_#{channel.id}".to_sym, :class => 'room', :name => channel.name, :href => channel.permalink||channel.id}
+        {:id => "chan_#{channel.id}".to_sym, :class => 'room', :name => channel.permalink, :href => channel.permalink}
       end
     end
 
@@ -88,7 +88,7 @@ class App < Sinatra::Base
           {:id => :"admin_channels", :class => 'admin', :name => 'Channels', :url => '/admin/channels'}]
       end
       list += get_admin_channels.map do |channel|
-        {:id => :"chan_#{channel.id}", :class => 'room', :name => channel.name, :url => "/admin/channels/#{channel.permalink||channel.id}"}
+        {:id => :"chan_#{channel.id}", :class => 'room', :name => channel.permalink, :url => "/admin/channels/#{channel.id}"}
       end
       list
     end
@@ -268,6 +268,12 @@ class App < Sinatra::Base
   get '/stats' do
     login_required
     return status(401) if !current_user.admin
+    
+    content_type :json
+    {
+      :subscriptions => SUBSCRIPTIONS.stats_enumerate,
+      :channels => Channel.all.map(&:stats_enumerate)
+    }.to_json
   end
   
   # Get users
@@ -489,7 +495,7 @@ class App < Sinatra::Base
         channel.to_info(:admin => true).to_json
       else
         status 422
-        {:error => 'InvalidAttributes'}.to_json
+        {:error => 'InvalidAttributes', :errors => channel.errors}.to_json
       end
     else
       {:error => 'NotFound'}

@@ -25,7 +25,7 @@ class User < ActiveRecord::Base
   end
   
   def update_tokens
-    if @password
+    if @password && !@password.nil? && !@password.empty?
       tnow = Time.now()
       sec = tnow.tv_usec
       usec = tnow.tv_usec % 0x100000
@@ -102,7 +102,54 @@ class Channel < ActiveRecord::Base
   before_update :set_update_info
   after_update :notify_updates
   
-  attr_accessible :name, :permalink, :banner, :footer
+  attr_accessible :name, :permalink, :banner, :footer, :moderator_list
+  
+  validates_presence_of :name
+  validates_presence_of :permalink
+  validates_uniqueness_of :permalink
+  
+  before_validation :generate_permalink
+  
+  def generate_permalink
+    if self[:permalink].nil? or self[:permalink].empty?
+      self[:permalink] = (self[:name]||'').downcase.gsub(/[^a-z0-9]+/, '-').gsub(/^\\-+|\\-+$/, '')
+    end
+  end
+  
+  def moderator_list
+    @moderator_list ||= moderators.map(&:name).join("\n")
+    @moderator_list
+  end
+  
+  def moderator_list=(value)
+    @moderator_list = nil
+
+    old_list = moderators.to_a
+    current_list = old_list
+    new_list = value.split("\n").map(&:strip)
+    
+    to_add = []
+    to_delete = []
+    
+    # Add to to_add
+    new_list.each do |l|
+      idx = old_list.index{|m|m.name == l}
+      to_add << l if idx.nil?
+    end
+    
+    # Add to to_delete
+    old_list.each do |l|
+      idx = new_list.index{|m|m == l.name}
+      to_delete << l if idx.nil?
+    end
+    
+    to_add.each do |mod|
+      moderators.build(:name => mod)
+    end
+    moderators.delete(to_delete)
+    
+    moderators
+  end
   
   # Update to new time (e.g. when user has manipulated slider)
   def delta_start_time!(new_time, from=Time.now.utc)
@@ -228,8 +275,8 @@ class Channel < ActiveRecord::Base
   def to_info(options={})
     base = {
       :id => id,
-      :user => user.try(:to_info),
       :name => name,
+      :permalink => permalink,
       :created_at => created_at.to_i,
       :updated_at => updated_at.to_i,
       :start_time => start_time.to_i,
@@ -237,16 +284,27 @@ class Channel < ActiveRecord::Base
     }
     
     if options[:admin]
-      base[:admin_users] = admin_channels.map(&:id)
+      base[:admin_user_ids] = admin_channels.map(&:id)
       base[:moderators] = moderators.map(&:name)
     end
     
     if options[:full] or options[:admin]
       base[:banner] = banner
-      base[:fooer] = footer
+      base[:footer] = footer
     end
     
     base
+  end
+  
+  def stats_enumerate
+    {
+      :id => id,
+      :permalink => permalink,
+      :name => name,
+      :videos => videos.map(&:to_info),
+      :current_video_id => current_video_id,
+      :start_time => start_time.to_i
+    }
   end
   
 end
@@ -379,10 +437,11 @@ class Ban < ActiveRecord::Base
   end
   
   def duration=(value)
-    if value < 0
+    vi = value.to_i
+    if vi < 0
       self[:ended_at] = nil
     else
-      self[:ended_at] = Time.now.utc + value
+      self[:ended_at] = Time.now.utc + vi
     end
   end 
   

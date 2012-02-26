@@ -258,6 +258,27 @@ describe App do
     end
   end
   
+  describe "/stats" do
+    it "should only be accessable by an admin" do
+      get '/stats', {}, mock_login_session(@user)
+      last_response.status.should == 401
+      
+      @user.update_attribute(:admin, true)
+      get '/stats', {}, mock_login_session(@user)
+      last_response.status.should == 200
+    end
+    
+    it "should enumerate subscriptions and channels" do
+      SUBSCRIPTIONS.should_receive(:stats_enumerate)
+    
+      @user.update_attribute(:admin, true)
+      get '/stats', {}, mock_login_session(@user)
+      
+      data = JSON.parse(last_response.body)
+      data['channels'].map{|c|c['id']}.should == [@channel.id]
+    end
+  end
+  
   describe "/admin" do
     before do
       @user.update_attribute(:admin, true)

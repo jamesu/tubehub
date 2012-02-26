@@ -126,6 +126,31 @@ describe Channel do
         @channel.delta_start_time!(60)
       end
     end
+    
+    it "should enumerator moderators via moderator_list" do
+      Moderator.create!(:name => 'Sanic', :channel_id => @channel.id)
+      Moderator.create!(:name => 'Gal', :channel_id => @channel.id)
+      Moderator.create!(:name => 'Mareo', :channel_id => @channel.id)
+      
+      @channel.moderator_list.should == "Sanic\nGal\nMareo"
+    end
+    
+    it "should assign moderators via moderator_list" do
+      # 2 mods
+      Moderator.create!(:name => 'Sanic', :channel_id => @channel.id)
+      Moderator.create!(:name => 'Mareo', :channel_id => @channel.id)
+      
+      @channel.moderator_list.should == "Sanic\nMareo"
+      
+      # Remove 1, add 2
+      @channel.moderator_list = "Mareo\nGal\nTorTanic"
+      @channel.moderator_list.should == "Mareo\nGal\nTorTanic"
+      
+      # Should be consistent between instances
+      @channel.save
+      @channel = Channel.find_by_id(@channel.id)
+      @channel.moderator_list.should == "Mareo\nGal\nTorTanic"
+    end
   end
 
   # TODO: implement timer

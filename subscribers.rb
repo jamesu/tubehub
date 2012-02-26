@@ -12,6 +12,13 @@ class SubscriberList
     @connections = []
   end
   
+  def stats_enumerate
+    {
+      :connections => @connections.length,
+      :channels => {}.tap {|l| l.each{|k,v| l[k] = v.length } }
+    }
+  end
+  
   def send_message(destination, type, message)
     real_message = type.nil? ? message : (message||{}).merge('t' => type)
     if destination.respond_to?(:each)
@@ -72,7 +79,6 @@ class SubscriberList
     if !channel.nil?
       @list[chan].delete(connection)
       @list[chan].each{|socket| socket.send_message({'t' => 'userleft', 'user' => {:id => connection.user_id}})}
-      @connections.delete(connection)
     else
       @list.each do |subscriber_channel, users|
         if users.include?(connection)
@@ -80,6 +86,7 @@ class SubscriberList
           users.each{|socket| socket.send_message({'t' => 'userleft', 'user' => {:id => connection.user_id}})}
         end
       end
+      @connections.delete(connection)
     end
   end
 end

@@ -9,11 +9,11 @@ describe Ban do
     now = Time.now.utc
     Timecop.freeze(now) do
       # +1000
-      ban = Ban.create!(:ip => '127.0.0.1', :duration => 1000)
+      ban = Ban.create!(:ip => '127.0.0.1', :duration => '1000')
       ban.ended_at.to_i.should == (now+1000).to_i
       
       # -1 
-      ban = Ban.create!(:ip => '127.0.0.1', :duration => -1)
+      ban = Ban.create!(:ip => '127.0.0.1', :duration => '-1')
       ban.ended_at.should == nil
     end
   end
