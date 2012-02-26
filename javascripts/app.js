@@ -100,63 +100,124 @@ $.fn.serializeObject = function()
         return this;
       }
     });
-
-    var TubeListItem = Backbone.View.extend({
+    
+    var PlaylistView = {
       tagName: 'div',
-
-      className: 'item',
-
+      id: 'playlist',
+      
       events: {
-        'click .title':   'open',
-        'click .delete': 'destroy'
-      },
-
-      open: function() {
-        $.ajax({	
-          type: 'PUT',
-          url: '/video',
-          data: {'channel_id': Tube.channel.get('id'), 'id': this.model.get('id')},
-          success: function(data) {
-            console.log('VIDEO SET',data);
-            }});
-          },
-
-          destroy: function() {
-            // Delete model
-            $.ajax({type: 'DELETE',
-            url: '/video',
-            data: {'channel_id': Tube.channel.get('id'), 'id': this.model.get('id')},
-            success: function(data) {
-              console.log('VIDEO DELETED',data);
-        }});
-      },
-
-      render: function() {
-        var el = $(this.el).empty();
-        var item = this.model;
-        var inner = el;
-        inner.append('<div class=\'time\'></div>');
-        inner.append('<div class=\'title\'></div>');
-
-        if (Tube.admin)
-        inner.append('<div class=\'delete\'>[X]</div>');
-
-        inner.append('<div class=\'clear\'></div>');
-
-        console.log('tpl add', item);
-        inner.attr('id', 'playlist_video_' + item.id)
-        .attr('position', item.get('position'))
-        .attr('video_id', item.get('id'));
-        inner.children('.title').text(item.get('title'));
-        inner.children('.time').text(Tube.parseDuration(item.get('duration')));
-        
-        if (Tube.video_id == item.get('id'))
-          el.addClass('active');
-
-        return this;
+        'click .item .title':   'openItem',
+        'click .item .delete':  'destroyItem'
       }
-    });
+    };
+    
+    PlaylistView.initialize = function(options) {
+      // Playlist
+      Tube.playlist.bind('add', this.addVideo, this);
+      Tube.playlist.bind('change', this.updateVideo, this);
+      Tube.playlist.bind('remove', this.removeVideo, this);
+      Tube.playlist.bind('reset', this.addVideos, this);
+    }
+    
+    PlaylistView.openItem = function(event) {
+      if (!Tube.admin)
+        return;
+      var item = Tube.playlist.get($(event.target).parents('.item:first').attr('video_id'));
+      if (!item)
+        return;
+      
+      $.ajax({	
+        type: 'PUT',
+        url: '/video',
+        data: {'channel_id': Tube.channel.get('id'), 'id': item.get('id')},
+        success: function(data) {
+          console.log('VIDEO SET',data);
+      }});
+      
+    }
+    
+    PlaylistView.destroyItem = function(event) {
+      console.log('destroyItem')
+      if (!Tube.admin)
+        return;
+      
+      var item = Tube.playlist.get($(event.target).parents('.item:first').attr('video_id'));
+      if (!item)
+        return;
+      
+      // Delete model
+      $.ajax({type: 'DELETE',
+        url: '/video',
+        data: {'channel_id': Tube.channel.get('id'), 'id': item.get('id')},
+        success: function(data) {
+          console.log('VIDEO DELETED',data);
+      }});
+    }
+    
+    PlaylistView.addVideo = function(video) {
+        console.log('add callback', video.get('url'));
+        var item = $(this.el).append('<div class="item" id="playlist_video_' + video.get('id') + '"></div>').children().last();
+        this.renderItem(video, item);
+    }
+    
+    PlaylistView.addVideos = function(videos) {
+      this.render();
+      videos.each(this.addVideo, this);
+    }
+    
+    PlaylistView.updateVideo = function(video, attrs) {
+      var el = $('#playlist_video_' + video.get('id'));
+      this.renderItem(video, el);
+      
+      if (attrs.position) {
+          var idx = Tube.playlist.indexOf(model);
+          var rest = Tube.playlist.rest(idx);
+          var next = rest[0];
 
+          if (next) {
+            // Before the next element
+            el.insertBefore('#playlist_video_' + next.get('id'));
+          } else {
+            // At the end
+            $(this.el).append(el);
+          }
+      }
+    }
+    
+    PlaylistView.removeVideo = function(video) {
+      var item = $('#playlist_video_' + video.get('id'));
+      item.unbind();
+      item.remove();
+    }
+    
+    PlaylistView.render = function() {
+      $(this.el).empty();
+    }
+    
+    PlaylistView.renderItem = function(item, el) {
+      var inner = el;
+      el.empty();
+      inner.append('<div class=\'time\'></div>');
+      inner.append('<div class=\'title\'></div>');
+
+      if (Tube.admin)
+      inner.append('<div class=\'delete\'>[X]</div>');
+
+      inner.append('<div class=\'clear\'></div>');
+
+      inner.attr('id', 'playlist_video_' + item.id)
+      .attr('position', item.get('position'))
+      .attr('video_id', item.get('id'));
+      inner.children('.title').text(item.get('title'));
+      inner.children('.time').text(Tube.parseDuration(item.get('duration')));
+      
+      if (Tube.video_id == item.get('id'))
+        el.addClass('active');
+
+      return this;
+    }
+    
+    Tube.Views.PlaylistView = Backbone.View.extend(PlaylistView);
 
     // Init collections
     Tube.channel = new TubeChannel();
@@ -200,36 +261,6 @@ $.fn.serializeObject = function()
       delete Tube.userList[user.get('id')];
       item.remove();
     });
-
-    // Playlist
-    Tube.playlist.bind('add', function(video){
-      console.log('add callback', video.get('url'));
-      var item = new TubeListItem({model: video, id:'playlist_video_' + video.get('id')});
-      $('#playlist').append(item.render().el);
-
-      video.bind('change', function(model){ item.render() });
-      video.bind('change:position', function(model) {
-
-        var idx = Tube.playlist.indexOf(model);
-        var rest = Tube.playlist.rest(idx);
-        var next = rest[0];
-
-        if (next) {
-          // Before the next element
-          item.el.insertBefore('#playlist_video_' + next.get('id'));
-        } else {
-          // At the end
-          $('#playlist').append(item);
-        }
-      })
-    });
-
-    Tube.playlist.bind('remove', function(video){
-      var item = $('#playlist_video_' + video.get('id'));
-      item.unbind();
-      item.remove();
-    });
-
 
     // Controller
     Tube.registerHandler = function(provider, handler) {
@@ -487,6 +518,7 @@ $.fn.serializeObject = function()
 $(document).ready(function() {
   function initVideo()
   {
+    var plView = new Tube.Views.PlaylistView({el: $('#playlist')});
     $('#messageEntryBox').keypress(function(evt){
       if (evt.keyCode == 13) {
         if (evt.target.value.indexOf('/nick') == 0) {

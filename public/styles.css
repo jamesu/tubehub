@@ -515,7 +515,7 @@ label.check {
 
 #playlistContainer.editable .delete {
 	display: block;
-	cursor: auto;
+	cursor: pointer;
 }
 
 #overlaycanvas {
