@@ -15,6 +15,8 @@ class WebSocketApp < Rack::WebSocket::Application
   
   def on_open(env)
     # We cant rely on cookies so wait for the auth message
+    @address = ip_for(env)
+    log_info "OPEN"
   end
   
   def auth
@@ -29,11 +31,19 @@ class WebSocketApp < Rack::WebSocket::Application
     send_data data.to_json
   end
   
+  def log_error(message)
+    SUBSCRIPTIONS.logger.error "SOCKET[#{self.object_id},#{@address}] #{message}"
+  end
+  
+  def log_info(message)
+    SUBSCRIPTIONS.logger.info "SOCKET[#{self.object_id},#{@address}] #{message}"
+  end
+  
   def on_message(env, data)
     begin
       process_message(env, data)
     rescue Exception => e
-      puts "EXCEPTION: #{e.inspect}\n#{e.backtrace.join("\n")}"
+      SUBSCRIPTIONS.logger.error "[EXCEPTION: #{e.inspect}\n#{e.backtrace.join("\n")}"
     end
   end
   
@@ -85,7 +95,7 @@ class WebSocketApp < Rack::WebSocket::Application
     message = JSON.parse(data) rescue {}
     now = Time.now.utc
     
-    puts "MSG: #{message}"
+    log_info "MSG: #{message.inspect}"
     
     # Socket needs to be authenticated FIRST
     return if !auth && message['t'] != 'auth'
@@ -97,18 +107,18 @@ class WebSocketApp < Rack::WebSocket::Application
       # Note that besides banning there isn't really much in the way of
       # user control.
       user = User.find_by_auth_token(message['auth_token'])
-      ban = Ban.find_active_by_ip(ip_for(env))
-      puts "AUTH REQUEST FROM #{ip_for(env)}"
+      ban = Ban.find_active_by_ip(@address||ip_for(env))
       if ban
         # User was banned
         send_message({'t' => 'goaway', 'reason' => 'ban', 'comment' => ban.comment})
+        log_info "BANNED"
       elsif user && user.auth_token?
         # Admin / channel admin login
         @current_user = user
         @current_name, @current_tripcode = Tripcode.encode(user.nick)
         send_message({'t' => 'hello', 'user' => user_data, 'api' => API_VERSION})
         @current_user.update_attribute(:auth_token, nil)
-        puts "OPEN[#{ip_for(env)}] #{user_id}"
+        log_info "AUTH #{user_id}"
         SUBSCRIPTIONS.register_connection(self)
         @auth = true
       else
@@ -118,12 +128,13 @@ class WebSocketApp < Rack::WebSocket::Application
         
         if !User.find_by_eval_nick(unt)
           send_message({'t' => 'hello', 'user' => user_data, 'api' => API_VERSION})
-          puts "OPEN[#{ip_for(env)}] #{user_id}"
+          log_info "AUTH #{user_id}"
           SUBSCRIPTIONS.register_connection(self)
           @auth = true
         else
           # not allowed
           send_message({'t' => 'goaway', 'reason' => 'inuse'})
+          log_info "INUSE #{user_id}"
         end
       end
     when 'message'
@@ -133,6 +144,8 @@ class WebSocketApp < Rack::WebSocket::Application
           'uid' => user_id,
           'content' => message['content']
         })
+        
+        #log_info "MSG #{message['channel_id']} <#{user_id}>#{message['content']}"
       end
     when 'usermod'
       # User wants to change their name
@@ -141,21 +154,22 @@ class WebSocketApp < Rack::WebSocket::Application
         @current_name = new_name
         @current_tripcode = new_tripcode
         SUBSCRIPTIONS.send_message(message['channel_id'], 'usermod', {'user' => user_data})
+        log_info "MOD #{user_id}"
       end
     when 'subscribe'
       # Subscribe to channel
-      puts "#{user_id} SUBSCRIBE #{message['channel_id']}"
       channel = Channel.find_by_id(message['channel_id'])
       if channel
         # Unsubscribe from previous
         if @current_channel_id
-          puts "#{user_id} UNSUBSCRIBE EXISTING #{@current_channel_id}"
+          #puts "#{user_id} UNSUBSCRIBE EXISTING #{@current_channel_id}"
           SUBSCRIPTIONS.unsubscribe(self, @current_channel_id)
         end
         
-        puts "SUBSCRIBING TO CHANNEL #{channel.name} (#{channel.current_video.try(:url)})"
+        #puts "SUBSCRIBING TO CHANNEL #{channel.name} (#{channel.current_video.try(:url)})"
         SUBSCRIPTIONS.subscribe(self, channel)
         @current_channel_id = channel.id
+        log_info "SUBSCRIBED #{user_id} #{channel.id}"
         
         # Get current video
         if channel.current_video
@@ -179,7 +193,6 @@ class WebSocketApp < Rack::WebSocket::Application
       end
     when 'unsubscribe'
       # Unsubscribe from channel
-      puts "#{user_id} UNSUBSCRIBE #{message['channel_id']}"
       channel = Channel.find_by_id(message['channel_id'])
       SUBSCRIPTIONS.unsubscribe(self, channel) if channel
       @current_channel_id = nil
@@ -200,8 +213,6 @@ class WebSocketApp < Rack::WebSocket::Application
       # Force the video
       # Note: Only channel admins or moderators can do this.
       
-      puts "#{user_id} VIDEO #{message['channel_id']} #{message['video_id']} #{message['url']}"
-      
       # TWO OPTIONS:
       # 1) Provide video id (in playlist)
       # 2) Provide video url (grabs metadata later)
@@ -215,21 +226,22 @@ class WebSocketApp < Rack::WebSocket::Application
           elsif message['url']
             channel.quickplay_video(Video.get_playback_info(message['url']))
           end
+          
+          log_info "VIDEO CHANGED #{user_id}"
         end
       end
-    
-    # TODO: 
     when 'video_finished'
       # Advance to next video
       # Note: Only channel admins or moderators can do this.
       
       # Only the owner of the channel can set the video
-      puts "#{user_id} VIDEO FINISHED #{message['channel_id']}"
+      #puts "#{user_id} VIDEO FINISHED #{message['channel_id']}"
       
       if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
         channel = Channel.find_by_id(message['channel_id'])
         if scope_for(channel) != ''
           channel.next_video!
+          log_info "VIDEO FINISHED #{user_id}"
         end
       end
     when 'video_time'
@@ -251,7 +263,7 @@ class WebSocketApp < Rack::WebSocket::Application
   end
   
   def on_close(env)
-    puts "CLOSE #{user_id}"
+    log_info "CLOSE #{user_id}"
     SUBSCRIPTIONS.unsubscribe(self)
   end
 end

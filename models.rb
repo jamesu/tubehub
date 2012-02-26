@@ -388,14 +388,14 @@ class Video < ActiveRecord::Base
         xml.elements.each("entry/title") { |t| title = t.text }
         xml.elements.each("entry/media:group/yt:duration") { |t| duration = t.attribute('seconds').value.to_f }
 
-        puts "VIDEO #{url}: TITLE=#{title}, DURATION=#{duration}"
+        #puts "VIDEO #{url}: TITLE=#{title}, DURATION=#{duration}"
         unless title.nil? and duration.nil?
           record.title = title
           record.duration = duration
           record.save!
         end
       rescue Object => e
-        puts "VIDEO #{url}: ERROR GETTING METADATA!!! #{e.inspect}\n#{e.backtrace}"
+        #puts "VIDEO #{url}: ERROR GETTING METADATA!!! #{e.inspect}\n#{e.backtrace}"
       end
     end
   end

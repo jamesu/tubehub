@@ -189,13 +189,10 @@ class App < Sinatra::Base
     content_type :json
     channel = Channel.find_by_id(params[:channel_id])
     
-    puts "PUT VIDEO"
     response_data = {}
     if channel and channel.can_be_moderated_by(current_user)
-      puts "ERRR FIND #{params[:id]}<<  #{params.keys.join(',')}"
       video = channel.videos.find_by_id(params[:id])
       if video
-        puts "FOUND VIDEO, PLAYING"
         channel.play_item(video)
         response_data = video.to_info
       end
@@ -209,7 +206,6 @@ class App < Sinatra::Base
     content_type :json
     channel = Channel.find_by_id(params[:channel_id])
     
-    puts "POST VIDEO"
     response_data = {}
     if channel# and channel.video_can_be_added_by(current_user)
       video = channel.add_video(Video.get_playback_info(params[:url]))

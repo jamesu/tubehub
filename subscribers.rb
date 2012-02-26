@@ -2,9 +2,14 @@
 # Big nasty shared subscriptions list
 
 class SubscriberList
-  def initialize
+  def initialize(opts={})
     @list = {}
     @connections = []
+    @logger = Logger.new(opts[:log]||STDOUT)
+  end
+  
+  def logger
+    @logger
   end
   
   def reset
