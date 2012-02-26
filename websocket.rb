@@ -3,6 +3,8 @@ class WebSocketApp < Rack::WebSocket::Application
   
   API_VERSION=1
   
+  attr_accessor :skip
+  
   def ip_for(env)
     if addr = env['HTTP_X_FORWARDED_FOR']
       addr.split(',').last.strip
@@ -181,6 +183,19 @@ class WebSocketApp < Rack::WebSocket::Application
       channel = Channel.find_by_id(message['channel_id'])
       SUBSCRIPTIONS.unsubscribe(self, channel) if channel
       @current_channel_id = nil
+    when 'skip'
+      @skip = 1
+      channel = Channel.find_by_id(current_channel_id)
+      if channel
+        users = SUBSCRIPTIONS.user_count_in_channel_id(channel.id)
+        skips = SUBSCRIPTIONS.skip_count_in_channel_id(channel.id)
+        SUBSCRIPTIONS.send_message(current_channel_id, 'skip', {'count' => skips})
+        channel.skip_video!(skips, users)
+      end
+    when 'unskip'
+      @skip = 0
+      skips = SUBSCRIPTIONS.skip_count_in_channel_id(current_channel_id)
+      SUBSCRIPTIONS.send_message(current_channel_id, 'skip', {'count' => skips})
     when 'video'
       # Force the video
       # Note: Only channel admins or moderators can do this.

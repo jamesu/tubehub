@@ -77,6 +77,23 @@ describe Channel do
       @channel.next_video!
       @channel.current_video.url.should == 'H0MwvOJEBOM'
     end
+    
+    it "skip_video! should advance to the next video if the skip count exceeds the quota" do
+      # Add stuff to the playlist
+      @v1 = @channel.add_video({:video_id => '123', :provider => 'dummy'}, :grab_metadata => false)
+      @v2 = @channel.add_video({:video_id => '456', :provider => 'dummy'}, :grab_metadata => false)
+      
+      @channel.update_attribute(:skip_limit, 50)
+      @channel.play_item(@v1)
+      
+      @channel.current_video.should == @v1
+      @channel.skip_video!(1, 10)
+      @channel.current_video.should == @v1
+      
+      @channel.current_video.should == @v1
+      @channel.skip_video!(6, 10)
+      @channel.current_video.should == @v2
+    end
 
     it "should play_item existing videos in the playlist, clearing the current non-playlist video" do
       # Add stuff to the playlist

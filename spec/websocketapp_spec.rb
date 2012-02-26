@@ -189,6 +189,62 @@ describe WebSocketApp do
     end
   end
   
+  describe "Skip" do
+    before do
+      @video2 = @channel.videos.create!(
+        :title => BASE_VIDEO_INFO['title'],
+        :url => BASE_VIDEO_INFO['url']+'2',
+        :duration => 60,
+        :provider => BASE_VIDEO_INFO['provider']
+      )
+      @socket2 = WebSocketApp.new
+      @socket.process_message(FAKE_SOCKETENV, {'t' => 'auth'}.to_json)
+      @socket2.process_message(FAKE_SOCKETENV, {'t' => 'auth'}.to_json)
+    
+      @socket.process_message(FAKE_SOCKETENV, {'t' => 'subscribe', 'channel_id' => @channel.id}.to_json)
+      @socket2.process_message(FAKE_SOCKETENV, {'t' => 'subscribe', 'channel_id' => @channel.id}.to_json)
+      
+      @channel.update_attribute(:skip_limit, 100)
+    end
+    
+    it "should advance the skip count, skipping the video when the threshold has been reached" do
+      now = Time.now.utc
+      Timecop.freeze(now) do
+        @channel.play_item(@video)
+      
+        @socket.should_receive(:send_message).with({"count" => 1, "t"=>"skip"})
+        @socket2.should_receive(:send_message).with({"count" => 1, "t"=>"skip"})
+        @socket.process_message(FAKE_SOCKETENV, {'t' => 'skip'}.to_json)
+      
+        @socket.should_receive(:send_message).with({"count" => 2, "t"=>"skip"})
+        @socket2.should_receive(:send_message).with({"count" => 2, "t"=>"skip"})
+        @socket.should_receive(:send_message).with(@video2.to_info.merge({'t' => 'video', 'time' => 0.0, 'force' => true}))
+        @socket2.should_receive(:send_message).with(@video2.to_info.merge({'t' => 'video', 'time' => 0.0, 'force' => true}))
+        @socket2.process_message(FAKE_SOCKETENV, {'t' => 'skip'}.to_json)
+      end
+    end
+    
+    it "should decrease the skip count with unskip" do
+      @channel.play_item(@video)
+    
+      @socket.should_receive(:send_message).with({"count" => 1, "t"=>"skip"})
+      @socket2.should_receive(:send_message).with({"count" => 1, "t"=>"skip"})
+      @socket.process_message(FAKE_SOCKETENV, {'t' => 'skip'}.to_json)
+    
+      @socket.should_receive(:send_message).with({"count" => 0, "t"=>"skip"})
+      @socket2.should_receive(:send_message).with({"count" => 0, "t"=>"skip"})
+      @socket.process_message(FAKE_SOCKETENV, {'t' => 'unskip'}.to_json)
+    
+      @socket.should_receive(:send_message).with({"count" => 1, "t"=>"skip"})
+      @socket2.should_receive(:send_message).with({"count" => 1, "t"=>"skip"})
+      @socket2.process_message(FAKE_SOCKETENV, {'t' => 'skip'}.to_json)
+    
+      @socket.should_receive(:send_message).with({"count" => 0, "t"=>"skip"})
+      @socket2.should_receive(:send_message).with({"count" => 0, "t"=>"skip"})
+      @socket2.process_message(FAKE_SOCKETENV, {'t' => 'unskip'}.to_json)
+    end
+  end
+  
   describe "Video" do
     before do
       @video2 = @channel.videos.create!(

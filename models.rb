@@ -102,15 +102,15 @@ class Channel < ActiveRecord::Base
   before_update :set_update_info
   after_update :notify_updates
   
-  attr_accessible :name, :permalink, :banner, :footer, :moderator_list
+  attr_accessible :name, :permalink, :banner, :footer, :moderator_list, :skip_limit, :connection_limit
   
   validates_presence_of :name
   validates_presence_of :permalink
   validates_uniqueness_of :permalink
   
-  before_validation :generate_permalink
+  before_validation :update_fields
   
-  def generate_permalink
+  def update_fields
     if self[:permalink].nil? or self[:permalink].empty?
       self[:permalink] = (self[:name]||'').downcase.gsub(/[^a-z0-9]+/, '-').gsub(/^\\-+|\\-+$/, '')
     end
@@ -162,8 +162,7 @@ class Channel < ActiveRecord::Base
     start_time ? from - start_time : 0
   end
   
-  # Go to next video in playlist
-  def next_video!
+  def set_next_video
     # Current video in playlist?
     video_idx = videos.index(current_video)
     if video_idx.nil? and !videos.empty?
@@ -183,6 +182,20 @@ class Channel < ActiveRecord::Base
     else
       false
     end
+  end
+  
+  # Skip video if count exceeds limits
+  def skip_video!(vote_count, user_count)
+    return if skip_limit.nil?
+    if vote_count >= (user_count * (skip_limit / 100.0))
+      next_video!
+    end
+  end
+  
+  # Go to next video in playlist
+  def next_video!
+    set_next_video
+    save if @video_changed
   end
   
   # Plays video in playlist

@@ -60,6 +60,14 @@ class SubscriberList
     @connections.index{|c| c.user_name_trip == user_trip} != nil
   end
   
+  def user_count_in_channel_id(channel_id)
+    @list[channel_id] ? @list[channel_id].length : 0
+  end
+  
+  def skip_count_in_channel_id(channel_id)
+    (@list[channel_id]||[]).inject(0){|sum,i| sum+(i.skip||0)}
+  end
+  
   def register_connection(connection)
     @connections.push(connection)
   end
