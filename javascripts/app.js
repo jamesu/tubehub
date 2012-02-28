@@ -245,6 +245,14 @@ $.fn.serializeObject = function()
         $('#chanFooter').html(channel.get('footer'));
       
       Tube.onChangeSkipCount(channel);
+      
+      if (channel.get('locked')) {
+        $('#playlistEntryBox').hide();
+        $('#lockButton').text('Unlock Playlist');
+      } else {
+        $('#playlistEntryBox').show();
+        $('#lockButton').text('Lock Playlist');
+      }
     }
     Tube.onChangeSkipCount = function(channel) {
       var button = $('#skipButton');
@@ -583,7 +591,11 @@ $.fn.serializeObject = function()
     };
     Tube.onSetupUI = function() {
       // Basically we need to make sure all ui controls we need are shown
-      $('#playlistContainer').addClass('editable');
+      if (Tube.mod)
+        $('#playlistContainer').addClass('editable');
+      else
+        $('#playlistContainer').removeClass('editable');
+      
       var toolbar = $('#userToolbar').empty();
       
       if (Tube.mod) {
@@ -669,7 +681,7 @@ $(document).ready(function() {
     
     $('#userToolbar').on('click', '#lockButton', function(event){
       event.preventDefault();
-      
+      Tube.socket.sendJSON({'t': 'lock', 'channel_id':Tube.channel.get('id'), 'locked':!Tube.channel.get('locked')});
     });
 
     $('#playlistEntryBox').keypress(function(evt){
