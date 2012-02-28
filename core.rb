@@ -537,4 +537,5 @@ end
 ActiveRecord::Base.establish_connection dbconfig[ENV['RACK_ENV']]
 
 SUBSCRIPTIONS = SubscriberList.new
+SUBSCRIPTIONS.start_timer unless ENV["RACK_ENV"] == 'test'
 

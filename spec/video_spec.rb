@@ -1,16 +1,5 @@
 require 'spec_helper'
 
-# Typical video info
-BASE_VIDEO_INFO = 
-    {'id' => 1,
-     'url' => 'H0MwvOJEBOM',
-     'provider' => 'dummy',
-     'title' => 'HOW 2 DRAW SANIC HEGEHOG',
-     'duration' => 0,
-     'playlist' => false,
-     'position' => nil,
-     'added_by' => 'Anonymous'}
-
 describe Video do
   before(:each) do
     Video.delete_all

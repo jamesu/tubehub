@@ -1,19 +1,12 @@
 require 'spec_helper'
 
-BASE_VIDEO_INFO = 
-    {'url' => 'H0MwvOJEBOM',
-     'provider' => 'dummy',
-     'title' => 'HOW 2 DRAW SANIC HEGEHOG',
-     'duration' => 0,
-     'playlist' => false,
-     'position' => nil}
-
 describe Channel do
   before(:each) do
     Video.delete_all
     Channel.delete_all
     User.delete_all
     Timecop.return
+    SUBSCRIPTIONS.reset
   end
 
   describe "an instance" do
@@ -24,6 +17,12 @@ describe Channel do
                             :url => BASE_VIDEO_INFO['url'],
                             :duration => 60,
                             :provider => BASE_VIDEO_INFO['provider'])
+    end
+    
+    it "should notify SUBSCRIPTIONS of changes" do
+      SUBSCRIPTIONS.should_receive(:refresh_channels)
+      @channel.skip_limit = 100
+      @channel.save
     end
 
     it "should calculate the correct current_time" do
@@ -51,7 +50,7 @@ describe Channel do
       end
     end
 
-    it "next_video! should advance to the next playlist item" do
+    it "next_video! should advance to the next playlist item, deleting the current non-playlist video" do
       @video.update_attribute(:channel_id, @channel.id)
       @channel.play_item(@video)
       
@@ -59,10 +58,11 @@ describe Channel do
       @channel.add_video({:video_id => '123', :provider => 'dummy'}, :grab_metadata => false)
       @channel.add_video({:video_id => '456', :provider => 'dummy'}, :grab_metadata => false)
       
-      @channel.videos.length.should == 3
+      @channel.videos(true).length.should == 3
       
       @channel.current_video.url.should == 'H0MwvOJEBOM'
       @channel.next_video!
+      @channel.videos(true).length.should == 2
       @channel.current_video.url.should == '123'
       @channel.next_video!
       @channel.current_video.url.should == '456'

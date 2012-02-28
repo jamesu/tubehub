@@ -165,7 +165,9 @@ class Channel < ActiveRecord::Base
   def set_next_video
     # Current video in playlist?
     video_idx = videos.index(current_video)
-    if video_idx.nil? and !videos.empty?
+    last_video = current_video
+    
+    ret = if video_idx.nil? and !videos.empty?
       self.current_video = videos.first
       self.start_time = Time.now.utc
       @video_changed = true
@@ -182,6 +184,13 @@ class Channel < ActiveRecord::Base
     else
       false
     end
+    
+    # Destroy old non-playlist video
+    if current_video != last_video and last_video.playlist == false
+      last_video.destroy
+    end
+    
+    ret
   end
   
   # Skip video if count exceeds limits
@@ -265,6 +274,7 @@ class Channel < ActiveRecord::Base
       SUBSCRIPTIONS.send_message(id, 'video_time', {'time' => current_time})
     end
     @video_changed = @time_changed = false
+    SUBSCRIPTIONS.refresh_channels
     true
   end
   

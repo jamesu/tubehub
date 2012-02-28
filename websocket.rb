@@ -3,7 +3,7 @@ class WebSocketApp < Rack::WebSocket::Application
   
   API_VERSION=1
   
-  attr_accessor :skip
+  attr_accessor :skip, :leader, :auth
   
   def ip_for(env)
     if addr = env['HTTP_X_FORWARDED_FOR']
@@ -17,14 +17,6 @@ class WebSocketApp < Rack::WebSocket::Application
     # We cant rely on cookies so wait for the auth message
     @address = ip_for(env)
     log_info "OPEN"
-  end
-  
-  def auth
-    @auth || false
-  end
-  
-  def auth=(value)
-    @auth = value
   end
   
   def send_message(data)
@@ -64,7 +56,7 @@ class WebSocketApp < Rack::WebSocket::Application
   end
   
   def user_data
-    {:id => user_id, :name => user_name, :tripcode => @current_tripcode, :anon => @current_user ? false : true }
+    {:id => user_id, :name => user_name, :tripcode => @current_tripcode, :anon => @current_user ? false : true, :leader => @leader ? true : false }
   end
   
   def current_user
@@ -193,12 +185,12 @@ class WebSocketApp < Rack::WebSocket::Application
       end
     when 'unsubscribe'
       # Unsubscribe from channel
-      channel = Channel.find_by_id(message['channel_id'])
+      channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
       SUBSCRIPTIONS.unsubscribe(self, channel) if channel
       @current_channel_id = nil
     when 'skip'
       @skip = 1
-      channel = Channel.find_by_id(current_channel_id)
+      channel = SUBSCRIPTIONS.channel_metadata(current_channel_id)
       if channel
         users = SUBSCRIPTIONS.user_count_in_channel_id(channel.id)
         skips = SUBSCRIPTIONS.skip_count_in_channel_id(channel.id)
@@ -209,17 +201,33 @@ class WebSocketApp < Rack::WebSocket::Application
       @skip = 0
       skips = SUBSCRIPTIONS.skip_count_in_channel_id(current_channel_id)
       SUBSCRIPTIONS.send_message(current_channel_id, 'skip', {'count' => skips})
+    when 'leader'
+      # Choose a new leader
+      if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
+        channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
+        if scope_for(channel) != ''
+          SUBSCRIPTIONS.set_channel_leader(message['channel_id'], message['user_id'])
+        end
+      end
+    when 'kick'
+      # Kick a user
+      if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
+        channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
+        if scope_for(channel) != ''
+          SUBSCRIPTIONS.kick(message['user_id'])
+        end
+      end
     when 'video'
       # Force the video
-      # Note: Only channel admins or moderators can do this.
+      # Note: Only leaders or moderators can do this.
       
       # TWO OPTIONS:
       # 1) Provide video id (in playlist)
       # 2) Provide video url (grabs metadata later)
       
       if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
-        channel = Channel.find_by_id(message['channel_id'])
-        if scope_for(channel) != ''
+        channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
+        if @leader || scope_for(channel) != ''
           if message['video_id']
             video = channel.videos.find_by_id(message['video_id'])
             channel.play_item(video) if video
@@ -232,25 +240,25 @@ class WebSocketApp < Rack::WebSocket::Application
       end
     when 'video_finished'
       # Advance to next video
-      # Note: Only channel admins or moderators can do this.
+      # Note: Only leaders or moderators can do this.
       
       # Only the owner of the channel can set the video
       #puts "#{user_id} VIDEO FINISHED #{message['channel_id']}"
       
       if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
-        channel = Channel.find_by_id(message['channel_id'])
-        if scope_for(channel) != ''
+        channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
+        if @leader || scope_for(channel) != ''
           channel.next_video!
           log_info "VIDEO FINISHED #{user_id}"
         end
       end
     when 'video_time'
       # Set video time
-      # Note: Only channel admins or moderators can do this.
+      # Note: Only leaders can do this.
       
-      channel = Channel.find_by_id(message['channel_id'])
+      channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
       if channel && SUBSCRIPTIONS.has_channel_id?(channel.id)
-        if !message['time'].nil? and scope_for(channel) != ''
+        if !message['time'].nil? and @leader
           # Adjust channel model time if delta is too large
           current_time = channel.current_time(now)
           if (current_time - message['time'] < -1.0) or (current_time - message['time'] > 1.0)

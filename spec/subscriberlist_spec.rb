@@ -6,7 +6,9 @@ describe SubscriberList do
     Channel.destroy_all
     Moderator.destroy_all
     
-    @list = SubscriberList.new
+    @list = SUBSCRIPTIONS
+    SUBSCRIPTIONS.reset
+    
     @channel = Channel.create!(:name => 'v4c')
     @channel2 = Channel.create!(:name => 'vop')
     
@@ -135,8 +137,78 @@ describe SubscriberList do
     @con1.messages.last['t'].should == '123'
     @con2.messages.last['t'].should_not == '123'
   end
+  
+  it "kick should kick users except admins" do
+    @con1 = FakeConnection.new(@admin)
+    @con2 = FakeConnection.new()
+    
+    @list.register_connection(@con1)
+    @list.register_connection(@con2)
+    
+    @list.subscribe(@con1, @channel)
+    @list.subscribe(@con2, @channel2)
+    
+    @con1.should_not_receive(:close)
+    @con2.should_receive(:close)
+    
+    @list.kick(@con1.user_id)
+    @list.kick(@con2.user_id)
+  end
+  
+  describe "timer" do
+    before do
+      @observer = FakeConnection.new
+      @observer2 = FakeConnection.new
+
+      @list.subscribe(@observer, @channel)
+      @list.subscribe(@observer2, @channel2)
+      
+      @now = Time.now.utc
+      
+      Timecop.freeze(@now) do
+        @video = Video.new(:channel_id => @channel.id,
+                              :title => BASE_VIDEO_INFO['title'],
+                              :url => BASE_VIDEO_INFO['url'],
+                              :duration => 60.0,
+                              :provider => BASE_VIDEO_INFO['provider'],
+                              :added_by => BASE_VIDEO_INFO['added_by'],
+                              :playlist => true)
+        @video.save
+      end
+    end
+    
+    it "should advance videos in all channels" do
+      @channel.should_receive(:next_video!)
+      @channel2.should_receive(:next_video!)
+      @list.do_timer
+    end
+    
+    it "should not advance videos for channels with leaders" do
+      @observer.leader = true
+      @channel.should_not_receive(:next_video!)
+      @channel2.should_receive(:next_video!)
+      @list.do_timer
+    end
+    
+    it "should leave a 2 second gap between videos" do
+      #nope
+      Timecop.freeze(@now) do
+        @channel.play_item(@video)
+        @list.do_timer
+      end
+      
+      #nope
+      Timecop.freeze(@now + 60.seconds) do
+        @list.do_timer
+        @channel.current_time.should == 60
+      end
+      
+      #yes
+      Timecop.freeze(@now + 62.seconds) do
+        @list.do_timer
+        @channel.current_time.should == 0
+      end
+    end
+  end
 end
-
-
-#{'t' => 'userjoined', 'user' => connection.user_data, 'scope' => permission_scope
 

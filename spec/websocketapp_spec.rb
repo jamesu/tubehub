@@ -1,13 +1,5 @@
 require 'spec_helper'
 
-BASE_VIDEO_INFO = 
-    {'url' => 'H0MwvOJEBOM',
-     'provider' => 'dummy',
-     'title' => 'HOW 2 DRAW SANIC HEGEHOG',
-     'duration' => 0,
-     'playlist' => false,
-     'position' => nil}
-
 FAKE_SOCKETENV = {
   'REMOTE_ADDR' => '127.0.0.1'
 }
@@ -34,7 +26,7 @@ def mock_user_tripcode(opts={})
 end
 
 def mock_user_data(opts={})
-  {:id => mock_user_id(opts), :name => mock_user_name(opts), :tripcode => mock_user_tripcode(opts), :anon => opts[:user] ? false : true }
+  {:id => mock_user_id(opts), :name => mock_user_name(opts), :tripcode => mock_user_tripcode(opts), :anon => opts[:user] ? false : true, :leader => opts[:leader] ? true : false }
 end
 
 SUBSCRIPTIONS = SubscriberList.new
@@ -51,7 +43,8 @@ describe WebSocketApp do
     @video = Video.create!(:title => BASE_VIDEO_INFO['title'],
                           :url => BASE_VIDEO_INFO['url'],
                           :duration => 60,
-                          :provider => BASE_VIDEO_INFO['provider'])
+                          :provider => BASE_VIDEO_INFO['provider'],
+                          :playlist => true)
     
     @video.update_attribute(:channel_id, @channel.id)
     @socket = WebSocketApp.new
@@ -132,6 +125,9 @@ describe WebSocketApp do
       #@socket.should_receive(:send_message).with({"t"=>"userjoined", "user"=>mock_user_data(:name => 'Anonymous', :object_id => @socket.object_id), "scope"=>""})
       @socket.process_message(FAKE_SOCKETENV, {'t' => 'subscribe', 'channel_id' => @channel.id}.to_json)
       SUBSCRIPTIONS.user_id_in_channel_id?(@socket.user_id, @channel.id).should == true
+      
+      # Metadata should be assigned
+      SUBSCRIPTIONS.channel_metadata(@channel.id).should_not == nil
     end
     
     it "should not subscribe the user to an invalid channel" do
@@ -147,7 +143,6 @@ describe WebSocketApp do
       @socket.process_message(FAKE_SOCKETENV, {'t' => 'subscribe', 'channel_id' => @channel.id}.to_json)
       @socket2.process_message(FAKE_SOCKETENV, {'t' => 'subscribe', 'channel_id' => @channel.id}.to_json)
       
-      #@socket.should_not_receive(:send_message)
       @socket.should_receive(:send_message).with({'t' => 'message', 'uid' => @socket.user_id, 'content' => 'HELLO'})
       @socket2.should_receive(:send_message).with({'t' => 'message', 'uid' => @socket.user_id, 'content' => 'HELLO'})
       @socket.process_message(FAKE_SOCKETENV, {'t' => 'message', 'content' => 'HELLO', 'channel_id' => @channel.id}.to_json)
@@ -195,7 +190,8 @@ describe WebSocketApp do
         :title => BASE_VIDEO_INFO['title'],
         :url => BASE_VIDEO_INFO['url']+'2',
         :duration => 60,
-        :provider => BASE_VIDEO_INFO['provider']
+        :provider => BASE_VIDEO_INFO['provider'],
+        :playlist => true
       )
       @socket2 = WebSocketApp.new
       @socket.process_message(FAKE_SOCKETENV, {'t' => 'auth'}.to_json)
@@ -218,6 +214,13 @@ describe WebSocketApp do
       
         @socket.should_receive(:send_message).with({"count" => 2, "t"=>"skip"})
         @socket2.should_receive(:send_message).with({"count" => 2, "t"=>"skip"})
+        
+        @socket.skip.should == 1
+        @socket2.skip.should == nil
+        SUBSCRIPTIONS.channel_metadata(@channel.id).should_not == nil
+        @socket.current_channel_id.should == @channel.id
+        @socket2.current_channel_id.should == @channel.id
+        
         @socket.should_receive(:send_message).with(@video2.to_info.merge({'t' => 'video', 'time' => 0.0, 'force' => true}))
         @socket2.should_receive(:send_message).with(@video2.to_info.merge({'t' => 'video', 'time' => 0.0, 'force' => true}))
         @socket2.process_message(FAKE_SOCKETENV, {'t' => 'skip'}.to_json)
@@ -315,15 +318,31 @@ describe WebSocketApp do
         @channel.reload.current_video.should == @video2
       end
     
-      it "video_time should advance the video to the specified time" do
+      it "video_time should advance the video to the specified time for leaders" do
         now = Time.now.utc
         Timecop.freeze(now) do
           @channel.play_item(@video)
           @channel.reload.current_video.should == @video
           @socket.scope_for(@channel).should == 'mod'
+          @socket.process_message(FAKE_SOCKETENV, {'t' => 'leader', 'user_id' => @socket.user_id, 'channel_id' => @channel.id}.to_json)
+          @socket.leader.should == true
           @socket.process_message(FAKE_SOCKETENV, {'t' => 'video_time', 'time' => 30, 'channel_id' => @channel.id}.to_json)
           @channel.reload.current_time.should == 30
         end
+      end
+      
+      it "should set a leader provided the user is a moderator" do
+        @socket2 = WebSocketApp.new
+        @socket2.process_message(FAKE_SOCKETENV, {'t' => 'auth'}.to_json)
+        @socket2.process_message(FAKE_SOCKETENV, {'t' => 'subscribe', 'channel_id' => @channel.id}.to_json)
+          
+        @socket2.process_message(FAKE_SOCKETENV, {'t' => 'leader', 'user_id' => @socket2.user_id, 'channel_id' => @channel.id}.to_json)
+        @socket.leader.should == false
+        @socket2.leader.should == false
+        
+        @socket.process_message(FAKE_SOCKETENV, {'t' => 'leader', 'user_id' => @socket2.user_id, 'channel_id' => @channel.id}.to_json)
+        @socket.leader.should == false
+        @socket2.leader.should == true
       end
     end
   end

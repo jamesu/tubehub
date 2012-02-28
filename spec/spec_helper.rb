@@ -30,6 +30,9 @@ end
 class WebSocketApp < Rack::WebSocket::Application
   def send_data(data)
   end
+  
+  def send_message(msg)
+  end
 end
 
 # Disable metadata grabbing
@@ -40,6 +43,7 @@ end
 
 class FakeConnection
   attr_accessor :messages, :current_user, :scope
+  attr_accessor :skip, :leader, :auth
   
   def initialize(user=nil, name=nil, tripcode=nil)
     @current_user = user
@@ -52,6 +56,10 @@ class FakeConnection
     @messages << msg
   end
   
+  def current_channel_id
+    @current_channel_id
+  end
+  
   def user_id
     @current_user ? "user_#{@current_user.id}" : "anon_#{object_id}"
   end
@@ -61,7 +69,7 @@ class FakeConnection
   end
   
   def user_data
-    {:id => user_id, :name => user_name, :tripcode => @current_tripcode, :anon => @current_user ? false : true }
+    {:id => user_id, :name => user_name, :tripcode => @current_tripcode, :anon => @current_user ? false : true, :leader => @leader ? false : true}
   end
   
   def scope_for(channel)
@@ -84,4 +92,15 @@ class FakeConnection
     @scope
   end
 end
+
+BASE_VIDEO_INFO = 
+    {'id' => 1,
+     'url' => 'H0MwvOJEBOM',
+     'provider' => 'dummy',
+     'title' => 'HOW 2 DRAW SANIC HEGEHOG',
+     'duration' => 0,
+     'playlist' => false,
+     'position' => nil,
+     'added_by' => 'Anonymous'}
+
 

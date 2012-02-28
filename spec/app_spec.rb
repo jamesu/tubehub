@@ -5,6 +5,7 @@ describe App do
     User.destroy_all
     Channel.destroy_all
     Ban.destroy_all
+    SUBSCRIPTIONS.reset
     
     @channel = Channel.create!(:name => 'v4c', :banner => "Header here")
     
@@ -33,7 +34,7 @@ describe App do
     it "should not generate an auth token for anonymous" do
       # Token for socket identification
       post '/auth/socket_token'
-      last_response.status.should == 302
+      JSON.parse(last_response.body).should == {}
     end
   end
   
