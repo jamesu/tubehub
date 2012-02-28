@@ -48,6 +48,7 @@ describe WebSocketApp do
     
     @video.update_attribute(:channel_id, @channel.id)
     @socket = WebSocketApp.new
+    @socket.on_open(FAKE_SOCKETENV)
   end
   
   describe "Authentication" do
@@ -167,6 +168,13 @@ describe WebSocketApp do
     
     it "usermod should allow anonymous change their name" do
       @socket.process_message(FAKE_SOCKETENV, {'t' => 'usermod', 'name' => 'frodo'}.to_json)
+      @socket.user_name_trip.should == 'frodo'
+    end
+    
+    it "usermod should not allow anonymous to change their name to an existing user nick" do
+      user = User.create!(:name => 'admin', :nick => 'admin', :password => 'password', :password_confirm => 'password')
+      @socket.process_message(FAKE_SOCKETENV, {'t' => 'usermod', 'name' => user.eval_nick}.to_json)
+      @socket.user_name_trip.should == 'Anonymous'
     end
     
     it "should list all videos in the channel" do
@@ -263,6 +271,7 @@ describe WebSocketApp do
     
     describe "For anonymous" do
       before do
+        @socket.process_message(FAKE_SOCKETENV, {'t' => 'auth'}.to_json)
         @socket.process_message(FAKE_SOCKETENV, {'t' => 'subscribe', 'channel_id' => @channel.id}.to_json)
       end
     
@@ -282,6 +291,17 @@ describe WebSocketApp do
           @socket.process_message(FAKE_SOCKETENV, {'t' => 'video_time', 'time' => 30, 'channel_id' => @channel.id}.to_json)
           @channel.current_time.should == 0
         end
+      end
+      
+      it "should allow anyone to add_videos" do
+        @socket.process_message(FAKE_SOCKETENV, {'t' => 'add_video', 'url' => 'http://www.youtube.com/watch?v=-a7AC9__lDo', 'channel_id' => @channel.id}.to_json)
+        @channel.videos(true).map(&:url).include?('-a7AC9__lDo').should == true
+      end
+      
+      it "should not allow anyone to add_videos if the channel is locked" do
+        @channel.update_attribute(:locked, true)
+        @socket.process_message(FAKE_SOCKETENV, {'t' => 'add_video', 'url' => 'http://www.youtube.com/watch?v=-a7AC9__lDo', 'channel_id' => @channel.id}.to_json)
+        @channel.videos(true).map(&:url).include?('-a7AC9__lDo').should_not == true
       end
     end
     
@@ -343,6 +363,18 @@ describe WebSocketApp do
         @socket.process_message(FAKE_SOCKETENV, {'t' => 'leader', 'user_id' => @socket2.user_id, 'channel_id' => @channel.id}.to_json)
         @socket.leader.should == false
         @socket2.leader.should == true
+      end
+      
+      it "should allow moderators to add_videos if the channel is locked" do
+        @channel.update_attribute(:locked, true)
+        @socket.process_message(FAKE_SOCKETENV, {'t' => 'add_video', 'url' => 'http://www.youtube.com/watch?v=-a7AC9__lDo', 'channel_id' => @channel.id}.to_json)
+        @channel.videos(true).map(&:url).include?('-a7AC9__lDo').should == true
+      end
+      
+      it "should allow moderators to del_videos" do
+        @channel.videos(true).map(&:id).include?(@video2.id).should == true
+        @socket.process_message(FAKE_SOCKETENV, {'t' => 'del_video', 'video_id' => @video2.id, 'channel_id' => @channel.id}.to_json)
+        @channel.videos(true).map(&:id).include?(@video2.id).should_not == true
       end
     end
   end

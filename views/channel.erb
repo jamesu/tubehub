@@ -1,6 +1,10 @@
 <% set_tab :"chan_#{@channel.id}" %>
-<h1><%= @channel.name %></h1>
-<div id="chan_banner">
+<div id="chanInfo">
+	<span>Viewers: </span><span id="userCount">0</span>
+</div>
+<div id="chanTitle"><%= @channel.name %></div>
+<div class="clear"></div>
+<div id="chanBanner">
 <%= @channel.banner %>
 </div>
 <div id="status">
@@ -20,6 +24,8 @@
 	</div>
 </div>
 <div class="clear"></div>
+<div id="userToolbar">
+</div>
 <div id="chat">
 <ul id="userList">
 </ul>
@@ -31,7 +37,7 @@
 </div>
 </div>
 </div>
-<div id="chan_footer">
+<div id="chanFooter">
 <%= @channel.footer %>
 </div>
 <div id="debug">

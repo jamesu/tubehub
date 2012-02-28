@@ -60,9 +60,17 @@ YoutubeHandler.prototype.currentTime = function() {
         return 0;
     }
 };
+YoutubeHandler.prototype.duration = function() {
+  if (this.control) {
+      return this.control.getDuration();
+  } else {
+      return 0;
+  }
+}
 YoutubeHandler.prototype.setVideo = function(id, startTime, force) {
     this.force = force;
     this.startTime = startTime;
+    console.log('setvideo at',startTime)
     if (!this.loadedControl) {
         // Make the damn control
         var params = {

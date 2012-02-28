@@ -33,11 +33,15 @@ class SubscriberList
     @metadata[channel_id.to_i]
   end
   
+  def reset_skips(channel_id)
+    (@list[channel_id]||[]).each{|s| s.skip=false}
+  end
+  
   # Start a background update timer to advance leaderless channels
   def start_timer
     stop_timer
     @timer = EventMachine::PeriodicTimer.new(1) do
-      puts "TIMER PROCESS ITERATE"
+      #puts "TIMER PROCESS ITERATE"
       do_timer
     end
   end
@@ -50,6 +54,7 @@ class SubscriberList
       # Advance to next video if we've run out of time + gap
       # Ignore current videos without time
       if channel.current_video.nil? or (!channel.current_video.duration.nil? && (channel.current_time >= (channel.current_video.duration+2)))
+        puts "ADVANCE VIDEO ON CHANNEL #{channel.permalink}"
         channel.next_video!
       end
     end
@@ -118,7 +123,31 @@ class SubscriberList
   def kick(user_id)
     con = @connections.find{|c|c.user_id == user_id}
     unless con.nil?
-      con.close unless con.current_user && con.current_user.admin
+      con.close_websocket unless con.current_user && con.current_user.admin
+    end
+  end
+  
+  def ban(user_id)
+    con = @connections.find{|c|c.user_id == user_id}
+    unless con.nil?
+      return if con.current_user && con.current_user.admin
+      
+      addresses = con.addresses
+      addresses.each do |addr|
+        #next if addr == '127.0.0.1'
+        Ban.create!(:ip => addr,
+                    :ended_at => Time.now.utc + 1.day,
+                    :banned_by => con.user_name_trip,
+                    :banned_by_ip => con.addresses.join(','),
+                    :comment => "1 day ban")
+      end
+    end
+  end
+  
+  def kick_ip(ip)
+    cons = @connections.reject{|c|!c.addresses.include?(ip)}
+    cons.each do |con|
+      con.close_websocket unless con.current_user && con.current_user.admin
     end
   end
   
@@ -143,6 +172,7 @@ class SubscriberList
   
   def subscribe(connection, channel)
     permission_scope = connection.scope_for(channel)
+    num_skips = 0
     connection.leader = false
     @list[channel.id] ||= []
     @metadata[channel.id] ||= channel
@@ -150,6 +180,12 @@ class SubscriberList
     @list[channel.id] << connection
     @list[channel.id].each do |socket|
       connection.send_message({'t' => 'userjoined', 'user' => socket.user_data, 'scope' => socket.scope_for(channel)})
+      num_skips += 1 if socket.skip
+    end
+    
+    # Notify skip count
+    if num_skips > 0
+      connection.send_message({'t' => 'skip', 'count' => num_skips})
     end
   end
   
@@ -157,12 +193,21 @@ class SubscriberList
     chan = channel.class == Channel ? channel.id : channel
     if !channel.nil?
       @list[chan].delete(connection)
-      @list[chan].each{|socket| socket.send_message({'t' => 'userleft', 'user' => {:id => connection.user_id}})}
+      skip_count = skip_count_in_channel_id(chan)
+      @list[chan].each do |socket|
+        socket.send_message({'t' => 'userleft', 'user' => {:id => connection.user_id}})
+        # Notify skip count
+        socket.send_message({'t' => 'skip', 'count' => skip_count}) if connection.skip
+      end
     else
       @list.each do |subscriber_channel, users|
         if users.include?(connection)
           users.delete(connection)
-          users.each{|socket| socket.send_message({'t' => 'userleft', 'user' => {:id => connection.user_id}})}
+          skip_count = skip_count_in_channel_id(subscriber_channel)
+          users.each do |socket|
+            socket.send_message({'t' => 'userleft', 'user' => {:id => connection.user_id}})
+            socket.send_message({'t' => 'skip', 'count' => skip_count}) if connection.skip
+          end
         end
       end
       @connections.delete(connection)

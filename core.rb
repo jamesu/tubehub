@@ -17,6 +17,7 @@ class App < Sinatra::Base
   set :public_folder, File.dirname(__FILE__) + '/public'
   set :static, true
   set :logging, true
+  set :server, 'thin'
   
   JS_FILES = [
     'support/jquery.min.js',
@@ -25,6 +26,7 @@ class App < Sinatra::Base
     'support/json2.js',
     'support/underscore-min.js',
     'support/backbone-min.js',
+    'support/jquery-ui.js',
     'app.js',
     'admin.js',
     'youtube.js',
@@ -183,69 +185,28 @@ class App < Sinatra::Base
     end.to_json
   end
   
-  # Set current video to playlist item
-  put '/video' do
-    login_required
-    content_type :json
-    channel = Channel.find_by_id(params[:channel_id])
-    
-    response_data = {}
-    if channel and channel.can_be_moderated_by(current_user)
-      video = channel.videos.find_by_id(params[:id])
-      if video
-        channel.play_item(video)
-        response_data = video.to_info
-      end
-    end
-    
-    response_data.to_json
-  end
-  
-  # Add video to playlist
-  post '/video' do
-    content_type :json
-    channel = Channel.find_by_id(params[:channel_id])
-    
-    response_data = {}
-    if channel# and channel.video_can_be_added_by(current_user)
-      video = channel.add_video(Video.get_playback_info(params[:url]))
-      response_data = video.to_info if video
-    end
-    
-    response_data.to_json
-  end
-  
-  # Remove video
-  delete '/video' do
-    login_required
-    content_type :json
-    channel = Channel.find_by_id(params[:channel_id])
-    
-    response_data = {}
-    if channel and channel.can_be_moderated_by(current_user)
-      video = channel.videos.find_by_id(params[:id])
-      if video
-        if channel.current_video == video
-          video.update_attributes({:playlist => false})
-        else
-          video.destroy
-        end
-      end
-    end
-    
-    response_data.to_json
-  end
-  
   # Token for socket identification
   post '/auth/socket_token' do
+    data = JSON.parse(request.body.read) rescue {}
+    
     if current_user
       current_user.generate_auth_token!
       content_type :json
       {:auth_token => current_user.auth_token}.to_json
     else
       content_type :json
-      {}.to_json
+      {:name => session['name']}.to_json
     end
+  end
+  
+  # Remember nick
+  post '/auth/name' do
+    data = JSON.parse(request.body.read) rescue {}
+    
+    content_type :json
+    session[:name] = data['name'] if data['name']
+    
+    {}.to_json
   end
   
   # Admin panel
@@ -537,5 +498,7 @@ end
 ActiveRecord::Base.establish_connection dbconfig[ENV['RACK_ENV']]
 
 SUBSCRIPTIONS = SubscriberList.new
-SUBSCRIPTIONS.start_timer unless ENV["RACK_ENV"] == 'test'
 
+EM.next_tick do
+  SUBSCRIPTIONS.start_timer
+end unless ENV["RACK_ENV"] == 'test'

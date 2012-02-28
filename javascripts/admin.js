@@ -116,6 +116,14 @@
     <label for="chan_moderators">Moderators</label>\
     <textarea id="chan_moderators" name="moderator_list" type="text" rows="20" cols="60"><%= channel.escape("moderator_list") %></textarea>\
   </div>\
+  <div>\
+    <label for="chan_skip_limit">Skip Limit</label>\
+    <input id="chan_skip_limit" name="skip_limit" type="text" value="<%= channel.escape("skip_limit") %>"/>\
+  </div>\
+  <div>\
+    <label for="chan_video_limit">Video Limit</label>\
+    <input id="chan_video_limit" name="video_limit" type="text" value="<%= channel.escape("video_limit") %>"/>\
+  </div>\
   <button type="submit">Update</button>\
   Or <a href="#" class="cancel">Cancel</a>\
   Or <a href="#" class="delete">Delete</a>\
@@ -150,6 +158,10 @@
     
   }
   
+  BaseForm.onObjectRemoved = function(model) {
+    
+  }
+  
   BaseForm.deleteObject = function(event) {
     event.preventDefault();
     
@@ -161,7 +173,7 @@
     el.addClass('loading');
     
     this.model.destroy({
-      success: function() { form.cancelForm(event); },
+      success: function() { form.cancelForm(event); form.onObjectRemoved(this.model); },
       error: function() { el.removeClass('loading'); alert('Error deleting object'); }
     });
   }
@@ -336,11 +348,14 @@
   Tube.Views.UserListPanel = Backbone.View.extend(UserListPanel);
   
   
-  var NewBanForm = {
+  var EditBanForm = {
     className: 'ban_form',
     template: _.template(BanFormTemplate)
   };
-  NewBanForm.submitForm = function(evt) {
+  EditBanForm.initialize = function(options) {
+    this.edit_type = options.edit_type;
+  }
+  EditBanForm.submitForm = function(evt) {
     // Change state of form
     evt.preventDefault();
     
@@ -356,7 +371,7 @@
     });
   }
   
-  Tube.Views.NewBanForm = Tube.Views.BaseForm.extend(NewBanForm);
+  Tube.Views.EditBanForm = Tube.Views.BaseForm.extend(EditBanForm);
 
   var BanListPanel = {
     tagName: 'div',
@@ -370,6 +385,7 @@
     
   BanListPanel.initialize = function() {
     BanList.bind('add', this.addBan, this);
+    BanList.bind('remove', this.removeBan, this);
     BanList.bind('reset', this.addBans, this);
     
     BanList.fetch();
@@ -400,6 +416,10 @@
     ban.bind("change", this.updateBanRow, this);
   }
   
+  BanListPanel.removeBan = function(ban) {
+    $('#ban_row_' + ban.get('id')).remove();
+  }
+  
   BanListPanel.addBans = function(bans) {
     this.render();
     bans.each(this.addBan, this);
@@ -411,7 +431,7 @@
   
     if ($('#banedit').find('.ban_form')[0])
       return;
-    var form = new Tube.Views.NewBanForm({model: new AdminBan({})});
+    var form = new Tube.Views.EditBanForm({edit_type: 'new', model: new AdminBan({})});
     $('#banedit').prepend(form.render().el);
   }
   
@@ -419,8 +439,8 @@
     event.preventDefault();
   
     var ban_el = $(event.target).parents('.ban_row:first');
-    var edit = new Tube.Views.EditBanForm({model: BanList.get(ban_el.attr('ban_id'))});
-    $(this.el).append(edit.render().el);
+    var edit = new Tube.Views.EditBanForm({edit_type: 'edit', model: BanList.get(ban_el.attr('ban_id'))});
+    ban_el.after(edit.render().el);
 
     return false;
   }

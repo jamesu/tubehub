@@ -472,12 +472,12 @@ label.check {
 #playlistContainer {
 	float: right;
 	width: 280px;
-	height: 340px;
+	height: 360px;
 	border: 2px solid #ccc;
 }
 
 #playlist {
-	height: 310px;
+	height: 330px;
 	overflow-y: scroll;
 }
 
@@ -516,6 +516,17 @@ label.check {
 #playlistContainer.editable .delete {
 	display: block;
 	cursor: pointer;
+}
+
+#chanTitle {
+  font-size: 28px;
+  font-weight: bolder;
+  padding-bottom: 6px;
+}
+
+#chanInfo {
+  float: right;
+  width: 100px;
 }
 
 #overlaycanvas {
@@ -568,6 +579,31 @@ label.check {
 	background-color: #147b04;
 	color: #ffffff;
 	display: block;
+}
+
+#userToolbar {
+  background-color: #efefef;
+  padding: 4px;
+}
+
+#userToolbar .button {
+  margin: 0px 4px;
+  background-color: #ffffff;
+  color: #000000;
+  padding: 3px 4px;
+  font-size: 13px;
+  display: inline-block;
+  vertical-align: middle;
+  cursor: pointer;
+  border: 1px solid #000000;
+  text-decoration: none;
+  font-weight: bold;
+  border-radius: 5px;
+}
+
+#userToolbar .button:active {
+  background-color: #000000;
+  color: #ffffff;
 }
 
 .delete {

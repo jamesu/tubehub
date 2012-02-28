@@ -37,6 +37,13 @@ describe Ban do
     end
   end
   
+  it "should automatically kick matching users when the ban is active" do
+    @con = FakeConnection.new(nil,nil,nil,['127.0.0.1'])
+    SUBSCRIPTIONS.register_connection(@con)
+    @con.should_receive(:close)
+    @ban1 = Ban.create!(:ip => '127.0.0.1', :duration => 1000)
+  end
+  
   it "should enumerate info" do
     now = Time.now.utc
     Timecop.freeze(now) do

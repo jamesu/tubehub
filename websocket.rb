@@ -4,18 +4,28 @@ class WebSocketApp < Rack::WebSocket::Application
   API_VERSION=1
   
   attr_accessor :skip, :leader, :auth
+  attr_reader :addresses
+  
+  def ips_for(env)
+    forward = env['HTTP_X_FORWARDED_FOR']
+    [env['REMOTE_ADDR'], forward ? forward.split(',').last.strip : nil].compact
+  end
   
   def ip_for(env)
-    if addr = env['HTTP_X_FORWARDED_FOR']
+    env['REMOTE_ADDR']
+  end
+  
+  def forwarded_ip_for(env)
+    if env['HTTP_X_FORWARDED_FOR']
       addr.split(',').last.strip
     else
-      env['REMOTE_ADDR']
+      nil
     end
   end
   
   def on_open(env)
     # We cant rely on cookies so wait for the auth message
-    @address = ip_for(env)
+    @addresses = ips_for(env)
     log_info "OPEN"
   end
   
@@ -99,7 +109,7 @@ class WebSocketApp < Rack::WebSocket::Application
       # Note that besides banning there isn't really much in the way of
       # user control.
       user = User.find_by_auth_token(message['auth_token'])
-      ban = Ban.find_active_by_ip(@address||ip_for(env))
+      ban = Ban.find_active_by_ip(@addresses)
       if ban
         # User was banned
         send_message({'t' => 'goaway', 'reason' => 'ban', 'comment' => ban.comment})
@@ -142,7 +152,7 @@ class WebSocketApp < Rack::WebSocket::Application
     when 'usermod'
       # User wants to change their name
       new_name, new_tripcode = Tripcode.encode((message['name']||'').strip)
-      if @current_user.nil? and !new_name.empty? and new_name != user_name
+      if @current_user.nil? and !new_name.empty? and new_name != user_name and !User.find_by_eval_nick("#{new_name}#{new_tripcode}")
         @current_name = new_name
         @current_tripcode = new_tripcode
         SUBSCRIPTIONS.send_message(message['channel_id'], 'usermod', {'user' => user_data})
@@ -209,12 +219,28 @@ class WebSocketApp < Rack::WebSocket::Application
           SUBSCRIPTIONS.set_channel_leader(message['channel_id'], message['user_id'])
         end
       end
+    when 'lock'
+      # Lock/unlock playlist
+      if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
+        channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
+        if scope_for(channel) != ''
+          channel.update_attribute(:locked, message['locked'])
+        end
+      end
     when 'kick'
       # Kick a user
       if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
         channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
         if scope_for(channel) != ''
           SUBSCRIPTIONS.kick(message['user_id'])
+        end
+      end
+    when 'ban'
+      # Kick a user
+      if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
+        channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
+        if scope_for(channel) != ''
+          SUBSCRIPTIONS.ban(message['user_id'])
         end
       end
     when 'video'
@@ -232,10 +258,46 @@ class WebSocketApp < Rack::WebSocket::Application
             video = channel.videos.find_by_id(message['video_id'])
             channel.play_item(video) if video
           elsif message['url']
-            channel.quickplay_video(Video.get_playback_info(message['url']))
+            channel.quickplay_video(Video.get_playback_info(message['url']), Time.now.utc, {:added_by_ip => addresses.join(','), :added_by_user => user_name_trip})
           end
           
           log_info "VIDEO CHANGED #{user_id}"
+        end
+      end
+    when 'sort_videos'
+      if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
+        channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
+        if channel and (!channel.locked or scope_for(channel) != '')
+          # Simple conform order to input list
+          order = message['order']
+          start = channel.videos.length
+          channel.videos.each do |v|
+            idx = order.index(v.id)
+            v.position = idx||start
+            start += 1 if idx.nil?
+            v.save
+          end
+        end
+      end
+    when 'add_video'
+      if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
+        channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
+        if channel and (!channel.locked or scope_for(channel) != '')
+          video = channel.add_video(Video.get_playback_info(message['url']), {:added_by_ip => @addresses.join(','), :added_by_user => user_name_trip})
+        end
+      end
+    when 'del_video'
+      if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
+        channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
+        if channel and scope_for(channel) != ''
+          video = channel.videos.find_by_id(message['video_id'])
+          if video
+            if channel.current_video == video
+              video.update_attributes({:playlist => false})
+            else
+              video.destroy
+            end
+          end
         end
       end
     when 'video_finished'

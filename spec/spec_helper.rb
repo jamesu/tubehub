@@ -44,11 +44,13 @@ end
 class FakeConnection
   attr_accessor :messages, :current_user, :scope
   attr_accessor :skip, :leader, :auth
+  attr_accessor :addresses
   
-  def initialize(user=nil, name=nil, tripcode=nil)
+  def initialize(user=nil, name=nil, tripcode=nil, ips=nil)
     @current_user = user
     @current_name = name
     @current_tripcode = tripcode
+    @addresses = ips||[]
   end
   
   def send_message(msg)
@@ -90,6 +92,9 @@ class FakeConnection
       end
     end
     @scope
+  end
+  
+  def close
   end
 end
 

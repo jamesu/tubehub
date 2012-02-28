@@ -97,12 +97,12 @@ class Channel < ActiveRecord::Base
   belongs_to :current_video, :class_name => 'Video'
   has_and_belongs_to_many :admin_channels, :class_name => 'User', :join_table => 'channel_admins'
   has_many :moderators
-  has_many :videos
+  has_many :videos, :order => 'position ASC, id ASC'
   
   before_update :set_update_info
   after_update :notify_updates
   
-  attr_accessible :name, :permalink, :banner, :footer, :moderator_list, :skip_limit, :connection_limit
+  attr_accessible :name, :permalink, :banner, :footer, :moderator_list, :skip_limit, :connection_limit, :video_limit, :locked
   
   validates_presence_of :name
   validates_presence_of :permalink
@@ -233,7 +233,9 @@ class Channel < ActiveRecord::Base
     video.attributes = {:url => video_info[:video_id],
                         :provider => video_info[:provider],
                         :position => videos.count,
-                        :playlist => true}
+                        :playlist => true,
+                        :added_by => options[:added_by],
+                        :added_by_ip => options[:added_by_ip]}
     video.save
     
     video.grab_metadata unless options[:no_metadata]
@@ -250,7 +252,7 @@ class Channel < ActiveRecord::Base
     end
     
     # Set attributes now
-    video.attributes = {:url => video_info[:video_id], :provider => video_info[:provider]}
+    video.attributes = {:url => video_info[:video_id], :provider => video_info[:provider], :added_by => options[:added_by], :added_by_ip => options[:added_by_ip]}
     video_saved = video.save
     
     video.grab_metadata unless options[:no_metadata]
@@ -264,16 +266,30 @@ class Channel < ActiveRecord::Base
   def set_update_info
     @video_changed ||= current_video_id_changed?
     @time_changed ||= start_time_changed?
+    @fields_changed = changes
     true
   end
   
   def notify_updates
     if @video_changed
       SUBSCRIPTIONS.send_message(id, 'video', current_video.to_info.merge({'time' => current_time, 'force' => @force_video||false}))
+      SUBSCRIPTIONS.reset_skips(id)
     elsif @time_changed
       SUBSCRIPTIONS.send_message(id, 'video_time', {'time' => current_time})
+    elsif @fields_changed
+      # Notify when fields have changed
+      allowed_fields = ['name', 'permalink', 'banner', 'footer', 'skip_limit', 'connection_limit', 'locked', 'video_limit']
+      @changed_keys = @fields_changed.keys & allowed_fields
+      
+      unless @changed_keys.empty?
+        msg = {'id' => id}
+        @changed_keys.each{|k| msg[k] = @fields_changed[k][1]}
+        SUBSCRIPTIONS.send_message(id, 'chanmod', msg)
+      end
     end
+    
     @video_changed = @time_changed = false
+    @changed_keys = nil
     SUBSCRIPTIONS.refresh_channels
     true
   end
@@ -303,7 +319,11 @@ class Channel < ActiveRecord::Base
       :created_at => created_at.to_i,
       :updated_at => updated_at.to_i,
       :start_time => start_time.to_i,
-      :current_video => current_video ? current_video.to_info(options) : nil
+      :current_video => current_video ? current_video.to_info(options) : nil,
+      :skip_limit => skip_limit,
+      :connection_limit => connection_limit,
+      :locked => locked,
+      :video_limit => video_limit
     }
     
     if options[:admin]
@@ -455,6 +475,8 @@ end
 class Ban < ActiveRecord::Base
   attr_accessible :ip, :created_at, :ended_at, :comment, :banned_by, :banned_by_ip, :duration
   
+  after_save :check_connections
+  
   def duration
     ended_at - (created_at||Time.now.utc)
   end
@@ -466,15 +488,22 @@ class Ban < ActiveRecord::Base
     else
       self[:ended_at] = Time.now.utc + vi
     end
-  end 
+  end
+  
+  def check_connections
+    SUBSCRIPTIONS.kick_ip(ip)
+  end
   
   def self.find_active_by_ip(ip)
-    ban = Ban.order('ended_at').where(:ip => ip).last
-    if ban.nil? or (!ban.ended_at.nil? and ban.ended_at < Time.now.utc)
-      nil
-    else
-      ban
+    bans = Ban.order('ended_at').where(:ip => ip)
+    bans.each do |ban|
+      if ban.nil? or (!ban.ended_at.nil? and ban.ended_at < Time.now.utc)
+        nil
+      else
+        return ban
+      end
     end
+    nil
   end
   
   def to_info(options={})

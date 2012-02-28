@@ -168,14 +168,19 @@ describe Channel do
       @channel = Channel.find_by_id(@channel.id)
       @channel.moderator_list.should == "Mareo\nGal\nTorTanic"
     end
-  end
-
-  # TODO: implement timer
-  describe "timer" do
-    it "should advance the current video playlist" do
-    end
-
-    it "should not advance the current video if there are no videos" do
+    
+    it "should notify subscriptions when any of the metadata fields have changed" do
+      # ['name', 'permalink', 'banner', 'footer', 'skip_limit', 'connection_limit', 'locked', 'video_limit']
+      fields_to_change = {'name' => 'New Name',
+                          'permalink' => 'New Permalink',
+                          'locked' => true,
+                          'banner' => 'Banner',
+                          'footer' => 'Footer',
+                          'skip_limit' => 101,
+                          'connection_limit' => 1000,
+                          'video_limit' => 200}
+      SUBSCRIPTIONS.should_receive(:send_message).with(@channel.id, 'chanmod', fields_to_change.merge('id' => @channel.id))
+      @channel.update_attributes(fields_to_change)
     end
   end
 end
