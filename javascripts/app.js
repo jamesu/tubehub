@@ -597,6 +597,8 @@ $.fn.serializeObject = function()
         toolbar.append('<a href="#" class="button" id="lockButton">Lock Playlist</a>');
       }
       toolbar.append('<a href="#" class="button" id="skipButton">Skip</a>');
+      toolbar.append('<div style="float:right"><span>Name:</span><input id="nameEntry" type="text" value=""/></a>');
+      $('#nameEntry')[0].value = Tube.tripcode||'';
     }
     Tube.onUsersChanged = function() {
       $('#userCount').text(Tube.users.length);
@@ -615,11 +617,6 @@ $(document).ready(function() {
           var newName = evt.target.value.split(' ')[1];
           if (newName)
             Tube.setName(newName);
-        } else if (evt.target.value.indexOf('/kick') == 0) {
-              var targetUser = evt.target.value.split(' ')[1];
-              if (targetUser) {
-                Tube.kickUser(newName);
-              }
         } else {
           Tube.socket.sendMessage(evt.target.value);
         }
@@ -653,6 +650,12 @@ $(document).ready(function() {
       var el = $(event.target).parents('li:first');
       Tube.socket.sendJSON({'t': 'ban', 'channel_id':Tube.channel.get('id'), 'user_id':el.attr('user_id')});
     });
+    
+    $('#userToolbar').on('keypress', '#nameEntry', function(event){
+      if (event.keyCode == 13) {
+        Tube.setName(event.target.value);
+      }
+    })
     
     $('#userToolbar').on('click', '#sortButton', function(event){
       event.preventDefault();
