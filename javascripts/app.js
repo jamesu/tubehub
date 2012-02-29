@@ -612,7 +612,7 @@ $(document).ready(function() {
   {
     var plView = new Tube.Views.PlaylistView({el: $('#playlist')});
     $('#messageEntryBox').keypress(function(evt){
-      if (evt.keyCode == 13) {
+      if (evt.keyCode == 13 && evt.target.value != "") {
         if (evt.target.value.indexOf('/nick') == 0) {
           var newName = evt.target.value.split(' ')[1];
           if (newName)
@@ -652,7 +652,7 @@ $(document).ready(function() {
     });
     
     $('#userToolbar').on('keypress', '#nameEntry', function(event){
-      if (event.keyCode == 13) {
+      if (event.keyCode == 13 && evt.target.value != "") {
         Tube.setName(event.target.value);
       }
     })
@@ -681,7 +681,7 @@ $(document).ready(function() {
     });
 
     $('#playlistEntryBox').keypress(function(evt){
-      if (evt.keyCode == 13) {
+      if (evt.keyCode == 13 && evt.target.value != "") {
         Tube.socket.sendJSON({'t': 'add_video', 'url': evt.target.value, 'channel_id':Tube.channel.get('id')});
         evt.target.value = '';
       }

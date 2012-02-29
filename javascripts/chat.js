@@ -6,7 +6,7 @@ ChatManager.prototype.onmessage = function(user_id, message){
 	var atBottom = messages[0].scrollHeight - messages[0].scrollTop < 201;
 	var usr = Tube.userList[user_id];
 	var extra = usr.get('anon') ? 'anon' : 'auth';
-	var el = messages.append('<div><div class="user um ' + extra + '"><span class="name"></span><span class="trip"></span>:</div><div class="msg"></div></div>').children().last();
+	var el = messages.append('<div><div class="user um ' + extra + '"><span class="name"></span><span class="trip"></span>:</div><div class="msg"></div><div class="clear"></div></div>').children().last();
 	el.children('.msg').text(message);
 	
 	var user = el.children('.user');
