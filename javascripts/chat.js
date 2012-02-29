@@ -13,6 +13,12 @@ ChatManager.prototype.onmessage = function(user_id, message){
 	user.children('.name').text(usr.get('name'));
 	user.children('.trip').text(usr.get('tripcode'));
 	
+	// Remove old messages
+	var children = messages.children();
+	if (children.length > 200) {
+	  $(children[0]).remove();
+	}
+	
 	if (atBottom)
     	messages[0].scrollTop = messages[0].scrollHeight;
 };
