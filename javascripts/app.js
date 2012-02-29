@@ -652,7 +652,7 @@ $(document).ready(function() {
     });
     
     $('#userToolbar').on('keypress', '#nameEntry', function(event){
-      if (event.keyCode == 13 && evt.target.value != "") {
+      if (event.keyCode == 13 && event.target.value != "") {
         Tube.setName(event.target.value);
       }
     })
