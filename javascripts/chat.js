@@ -29,7 +29,7 @@ ChatManager.prototype.onchangename = function(user_id, old_name, old_tripcode){
 }
 
 ChatManager.prototype.onchangeleader = function(user){
-  console.log('new leader:', user.get('name'));
+  //console.log('new leader:', user.get('name'));
 }
 
 

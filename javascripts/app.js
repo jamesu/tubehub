@@ -100,12 +100,10 @@ $.fn.serializeObject = function()
         name.text(item.get('name'));
         tripcode.text(item.get('tripcode'));
         
-        console.log(item.get('name'),'======',item)
         if (item.get('leader')) {
           el.append('<span class="lead">*</span>')
         }
         
-        console.log('SCRRRRRREEEEAAAAM', Tube.mod)
         if (Tube.mod) {
           el.append('<a href="#" class="buttonKickUser">(K)</a>');
           el.append('<a href="#" class="buttonBanUser">(B)</a>');
@@ -143,7 +141,6 @@ $.fn.serializeObject = function()
     }
     
     PlaylistView.destroyItem = function(event) {
-      console.log('destroyItem')
       if (!Tube.mod)
         return;
       
@@ -175,8 +172,6 @@ $.fn.serializeObject = function()
           var idx = Tube.playlist.indexOf(video);
           var rest = Tube.playlist.rest(idx+1);
           var next = rest[0];
-          
-          console.log('pos',idx,rest,next)
 
           if (next) {
             // Before the next element
@@ -316,7 +311,6 @@ $.fn.serializeObject = function()
     };
     Tube.setTime = function(newTime) {
         if (this.video) {
-            console.log('START TIME:', newTime)
             this.offsetTime = (new Date()) - (newTime*1000);
             this.video.seek(newTime);
         }
@@ -328,7 +322,6 @@ $.fn.serializeObject = function()
         var provider = opts.provider;
         var force = opts.force;
         
-        console.log(id, url, startTime, provider, force)
         if (this.video == null || this.video.provider != provider) {
             if (this.video) {
                 this.video.stop();
@@ -352,25 +345,27 @@ $.fn.serializeObject = function()
       $('#videoTitle').text(video.title);
       $('#playlist .item').removeClass('active');
       
-      console.log('onSetVideo', video)
       if (video.id) {
         $('#playlist_video_' + video.id).addClass('active');
       }
     };
     Tube.onTimeChange = function(newTime) {
         if (Tube.leader) {
-          Tube.socket.sendJSON({
-              't': 'video_time',
-              'channel_id': Tube.channel.get('id'),
-              'time': newTime
-          });
+          var currentTime = ((new Date()) - Tube.offsetTime) / 1000.0;
+          if ((newTime - currentTime < -Tube.video.timeMargin) || (newTime - currentTime > Tube.video.timeMargin)) {
+            Tube.offsetTime = (new Date()) - (newTime*1000);
+            Tube.socket.sendJSON({
+                't': 'video_time',
+                'channel_id': Tube.channel.get('id'),
+                'time': newTime
+            });
+          }
         } else {
           var currentTime = ((new Date()) - Tube.offsetTime) / 1000.0;
           if ((newTime - currentTime < -Tube.video.timeMargin) || (newTime - currentTime > Tube.video.timeMargin)) {
             // Verify we haven't just got to the end of the video
             if (currentTime > Tube.video.duration())
               return;
-            console.log('non leader time change', currentTime, Tube.video.duration());
             Tube.setTime(((new Date()) - Tube.offsetTime) / 1000.0);
           }
         }
@@ -416,7 +411,7 @@ $.fn.serializeObject = function()
         };
         Tube.socket.onmessage = function(evt) {
             var message = JSON.parse(evt.data);
-            console.log(message.t,message);
+            //console.log(message.t,message);
             //$('#debug').append('<p>' + evt.data + '</p>');
 
             if (message.t == 'hello') {
@@ -484,7 +479,6 @@ $.fn.serializeObject = function()
                     }
                 }
             } else if (message.t == 'chanmod') {
-              console.log('CHANNEL MODDED', _.keys(message));
               if (Tube.channel.get('id') == message.id) {
                 Tube.channel.set(message);
               }
@@ -496,7 +490,6 @@ $.fn.serializeObject = function()
           this.onclose();
         };
         Tube.socket.onclose = function() {
-          console.log('onclose')
           Tube.users.reset();
           Tube.userList = {};
           if (Tube.connected) {
@@ -566,7 +559,7 @@ $.fn.serializeObject = function()
              Tube.setStatus('critical', 'You are banned from this channel: ' + message.comment);
            } else {
              Tube.setStatus('critical', 'Authorization failed');
-             console.log('OTHER REASON AUTH FAILED:', message);
+             //console.log('OTHER REASON AUTH FAILED:', message);
            }
            Tube.connected = false;
            Tube.socket.close();

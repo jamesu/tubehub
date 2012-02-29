@@ -70,7 +70,6 @@ YoutubeHandler.prototype.duration = function() {
 YoutubeHandler.prototype.setVideo = function(id, startTime, force) {
     this.force = force;
     this.startTime = startTime;
-    console.log('setvideo at',startTime)
     if (!this.loadedControl) {
         // Make the damn control
         var params = {
@@ -121,7 +120,7 @@ YoutubeHandler.prototype.onStateChange = function(newState) {
     }
 };
 YoutubeHandler.prototype.onError = function(code) {
-    console.log('Youtube error:', code);
+    //console.log('Youtube error:', code);
 };
 
 // Youtube callbacks
