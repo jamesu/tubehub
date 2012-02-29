@@ -51,8 +51,11 @@ class App < Sinatra::Base
   
   def render_javascript(files)
     data = files.map{|f|File.read "#{File.dirname(__FILE__)}/javascripts/#{f}"}
-    #Uglifier.compile(data.join(';'), {:squeeze => false})
-    data
+    if ENV["RACK_ENV"] == 'production'
+      Uglifier.compile(data.join(';'), {:squeeze => false})
+    else
+      data
+    end
   end
   
   helpers do
