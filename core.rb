@@ -1,5 +1,6 @@
 $stdout.sync = true
 ENV["RACK_ENV"] ||= "development"
+$production = ENV["RACK_ENV"] == 'production'
 
 require 'rubygems'
 require 'bundler'
@@ -12,6 +13,8 @@ require 'rack/websocket'
 require 'uri'
 require 'cgi'
 require 'rexml/document'
+
+JS_CACHE = {}
 
 class App < Sinatra::Base
   set :public_folder, File.dirname(__FILE__) + '/public'
@@ -50,9 +53,11 @@ class App < Sinatra::Base
   end
   
   def render_javascript(files)
+    return JS_CACHE['core'] if JS_CACHE.has_key?('core')
     data = files.map{|f|File.read "#{File.dirname(__FILE__)}/javascripts/#{f}"}
-    if ENV["RACK_ENV"] == 'production'
-      Uglifier.compile(data.join(';'), {:squeeze => false})
+    if $production
+      JS_CACHE['core'] = Uglifier.compile(data.join(';'), {:squeeze => false})
+      JS_CACHE['core']
     else
       data
     end
