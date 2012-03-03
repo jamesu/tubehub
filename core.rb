@@ -135,7 +135,12 @@ class App < Sinatra::Base
   
   get '/all.js' do
     content_type 'application/javascript'
-    render_javascript JS_FILES
+    if $production and JS_CACHE.has_key?('last_all_time')
+      last_modified(JS_CACHE['last_all_time'])
+    else
+      JS_CACHE['last_all_time'] = Time.now.utc
+    end
+    render_javascript(JS_FILES)
   end
   
   # Login
