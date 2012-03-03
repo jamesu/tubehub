@@ -532,10 +532,8 @@ label.check {
 #overlaycanvas {
   width: 425px;
   height: 316px;
-  border: 1px solid red;
   float: left;
   position: absolute;
-  //overflow: hidden;
 }
 
 #videoTitle {

@@ -8,7 +8,7 @@ var YoutubeHandler = function() {
     // tracks changes in playback url
     this.startTime = 0;
     this.timeCheckInterval = null;
-    this.timeMargin = 1.0;
+    this.timeMargin = 2.0;
     this.force = false;
 };
 YoutubeHandler.prototype.onReady = function() {
