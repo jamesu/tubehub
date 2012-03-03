@@ -26,7 +26,7 @@ class SubscriberList
   end
   
   def refresh_channels
-    @metadata.each{|k,v| v.reload}
+    @metadata.each{|k,v| v = Channel.find_by_id(v.id) }
   end
   
   def channel_metadata(channel_id)

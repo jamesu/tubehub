@@ -164,7 +164,7 @@ class Channel < ActiveRecord::Base
   
   def set_next_video
     # Current video in playlist?
-    video_idx = videos.index(current_video)
+    video_idx = videos(true).index(current_video)
     last_video = current_video
     
     ret = if video_idx.nil? and !videos.empty?
