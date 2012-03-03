@@ -11,5 +11,5 @@ test:
 
 production:
   adapter: sqlite3
-  database: db/tube-production.sqlite3
+  database: db/tube.sqlite3
 

@@ -2,7 +2,7 @@ load 'deploy'
 
 $:.unshift(File.expand_path('./lib', ENV['rvm_path'])) # Add RVM's lib directory to the load path.
 require "rvm/capistrano"                  # Load RVM's capistrano plugin.
-set :rvm_ruby_string, 'ruby-1.9.2'        # Or whatever env you want it to run in.
+set :rvm_ruby_string, 'ruby-1.9.3'        # Or whatever env you want it to run in.
 
 set :application, "tubehub"
 set :user, "app"
@@ -26,7 +26,7 @@ namespace :deploy do
   end
  
   task :stop, :roles => :app do
-    sudo "stop tubehub"
+    sudo "stop tubehub; true"
   end
  
   task :restart, :roles => :app do
