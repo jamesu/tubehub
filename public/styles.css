@@ -485,6 +485,10 @@ label.check {
 	height: 30px;
 }
 
+#playlistEntryBox {
+  width: 270px;
+}
+
 #playlist .item {
 	border-bottom: 1px solid #afafaf;
 	background-color: #eeeeee;
