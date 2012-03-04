@@ -28,8 +28,6 @@ end
 def mock_user_data(opts={})
   {:id => mock_user_id(opts), :name => mock_user_name(opts), :tripcode => mock_user_tripcode(opts), :anon => opts[:user] ? false : true, :leader => opts[:leader] ? true : false }
 end
-
-SUBSCRIPTIONS = SubscriberList.new
                             
 describe WebSocketApp do
   before(:each) do
@@ -224,7 +222,7 @@ describe WebSocketApp do
         @socket2.should_receive(:send_message).with({"count" => 2, "t"=>"skip"})
         
         @socket.skip.should == 1
-        @socket2.skip.should == nil
+        @socket2.skip.should == false
         SUBSCRIPTIONS.channel_metadata(@channel.id).should_not == nil
         @socket.current_channel_id.should == @channel.id
         @socket2.current_channel_id.should == @channel.id
@@ -300,6 +298,14 @@ describe WebSocketApp do
       
       it "should not allow anyone to add_videos if the channel is locked" do
         @channel.update_attribute(:locked, true)
+        @socket.process_message(FAKE_SOCKETENV, {'t' => 'add_video', 'url' => 'http://www.youtube.com/watch?v=-a7AC9__lDo', 'channel_id' => @channel.id}.to_json)
+        @channel.videos(true).map(&:url).include?('-a7AC9__lDo').should_not == true
+      end
+      
+      it "should not allow anyone to add_videos if the channel video limit has been reached" do
+        @channel.update_attribute(:video_limit, @channel.videos.length)
+        SUBSCRIPTIONS.channel_metadata(@channel.id).video_limit.should == @channel.videos(true).length
+        @channel.videos(true).map(&:url).include?('-a7AC9__lDo').should_not == true
         @socket.process_message(FAKE_SOCKETENV, {'t' => 'add_video', 'url' => 'http://www.youtube.com/watch?v=-a7AC9__lDo', 'channel_id' => @channel.id}.to_json)
         @channel.videos(true).map(&:url).include?('-a7AC9__lDo').should_not == true
       end

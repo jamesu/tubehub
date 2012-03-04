@@ -186,7 +186,7 @@ class Channel < ActiveRecord::Base
     end
     
     # Destroy old non-playlist video
-    if current_video != last_video and last_video.playlist == false
+    if !last_video.nil? and current_video != last_video and last_video.playlist == false
       last_video.destroy
     end
     

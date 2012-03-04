@@ -26,7 +26,7 @@ class SubscriberList
   end
   
   def refresh_channels
-    @metadata.each{|k,v| v = Channel.find_by_id(v.id) }
+    @metadata.keys.each{|k| @metadata[k] = Channel.find_by_id(@metadata[k].id) }
   end
   
   def channel_metadata(channel_id)
@@ -54,7 +54,7 @@ class SubscriberList
       # Advance to next video if we've run out of time + gap
       # Ignore current videos without time
       if channel.current_video.nil? or (!channel.current_video.duration.nil? && (channel.current_time >= (channel.current_video.duration+2)))
-        puts "ADVANCE VIDEO ON CHANNEL #{channel.permalink}"
+        #puts "ADVANCE VIDEO ON CHANNEL #{channel.permalink}"
         channel.next_video!
       end
     end

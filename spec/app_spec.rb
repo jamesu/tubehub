@@ -34,7 +34,7 @@ describe App do
     it "should not generate an auth token for anonymous" do
       # Token for socket identification
       post '/auth/socket_token'
-      JSON.parse(last_response.body).should == {}
+      JSON.parse(last_response.body).should == {'name' => nil}
     end
   end
   

@@ -149,7 +149,7 @@ describe SubscriberList do
     @list.subscribe(@con2, @channel2)
     
     @con1.should_not_receive(:close)
-    @con2.should_receive(:close)
+    @con2.should_receive(:close_websocket)
     
     @list.kick(@con1.user_id)
     @list.kick(@con2.user_id)
@@ -200,13 +200,13 @@ describe SubscriberList do
       #nope
       Timecop.freeze(@now + 60.seconds) do
         @list.do_timer
-        @channel.current_time.should == 60
+        @channel.reload.current_time.should == 60
       end
       
       #yes
       Timecop.freeze(@now + 62.seconds) do
         @list.do_timer
-        @channel.current_time.should == 0
+        @channel.reload.current_time.should == 0
       end
     end
   end

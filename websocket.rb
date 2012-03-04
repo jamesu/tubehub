@@ -283,7 +283,9 @@ class WebSocketApp < Rack::WebSocket::Application
       if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
         channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
         if channel and (!channel.locked or scope_for(channel) != '')
-          video = channel.add_video(Video.get_playback_info(message['url']), {:added_by_ip => @addresses.join(','), :added_by_user => user_name_trip})
+          if channel.video_limit.to_i == 0 or channel.videos.length < channel.video_limit
+            video = channel.add_video(Video.get_playback_info(message['url']), {:added_by_ip => @addresses.join(','), :added_by_user => user_name_trip})
+          end
         end
       end
     when 'del_video'

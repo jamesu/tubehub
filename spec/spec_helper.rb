@@ -33,6 +33,9 @@ class WebSocketApp < Rack::WebSocket::Application
   
   def send_message(msg)
   end
+  
+  def close_websocket
+  end
 end
 
 # Disable metadata grabbing
@@ -94,7 +97,7 @@ class FakeConnection
     @scope
   end
   
-  def close
+  def close_websocket
   end
 end
 

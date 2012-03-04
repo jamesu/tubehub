@@ -40,7 +40,7 @@ describe Ban do
   it "should automatically kick matching users when the ban is active" do
     @con = FakeConnection.new(nil,nil,nil,['127.0.0.1'])
     SUBSCRIPTIONS.register_connection(@con)
-    @con.should_receive(:close)
+    @con.should_receive(:close_websocket)
     @ban1 = Ban.create!(:ip => '127.0.0.1', :duration => 1000)
   end
   
