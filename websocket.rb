@@ -34,11 +34,11 @@ class WebSocketApp < Rack::WebSocket::Application
   end
   
   def log_error(message)
-    SUBSCRIPTIONS.logger.error "SOCKET[#{self.object_id},#{@address}] #{message}"
+    SUBSCRIPTIONS.logger.error "SOCKET[#{self.object_id},#{@addresses.join(':')}] #{message}"
   end
   
   def log_info(message)
-    SUBSCRIPTIONS.logger.info "SOCKET[#{self.object_id},#{@address}] #{message}"
+    SUBSCRIPTIONS.logger.info "SOCKET[#{self.object_id},#{@addresses.join(':')}] #{message}"
   end
   
   def on_message(env, data)
