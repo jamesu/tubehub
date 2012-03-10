@@ -144,7 +144,7 @@ describe WebSocketApp do
       
       @socket.should_receive(:send_message).with({'t' => 'message', 'uid' => @socket.user_id, 'content' => 'HELLO'})
       @socket2.should_receive(:send_message).with({'t' => 'message', 'uid' => @socket.user_id, 'content' => 'HELLO'})
-      @socket.process_message(FAKE_SOCKETENV, {'t' => 'message', 'content' => 'HELLO', 'channel_id' => @channel.id}.to_json)
+      @socket.process_message(FAKE_SOCKETENV, {'t' => 'message', 'content' => 'HELLO'}.to_json)
     end
     
     it "should unsubscribe the user from a subscribed channel" do
@@ -279,26 +279,26 @@ describe WebSocketApp do
           @channel.play_item(@video)
           @channel.current_video.should == @video
           @channel.current_time.should == 0
-          @socket.process_message(FAKE_SOCKETENV, {'t' => 'video', 'video_id' => @video2.id, 'channel_id' => @channel.id}.to_json)
+          @socket.process_message(FAKE_SOCKETENV, {'t' => 'video', 'video_id' => @video2.id}.to_json)
           @channel.current_video.should == @video
-          @socket.process_message(FAKE_SOCKETENV, {'t' => 'video', 'url' => 'http://www.youtube.com/watch?v=-a7AC9__lDo', 'channel_id' => @channel.id}.to_json)
+          @socket.process_message(FAKE_SOCKETENV, {'t' => 'video', 'url' => 'http://www.youtube.com/watch?v=-a7AC9__lDo'}.to_json)
           @channel.current_video.should == @video
           @channel.current_video.url.should == BASE_VIDEO_INFO['url']
-          @socket.process_message(FAKE_SOCKETENV, {'t' => 'video_finished', 'channel_id' => @channel.id}.to_json)
+          @socket.process_message(FAKE_SOCKETENV, {'t' => 'video_finished'}.to_json)
           @channel.current_video.should == @video
-          @socket.process_message(FAKE_SOCKETENV, {'t' => 'video_time', 'time' => 30, 'channel_id' => @channel.id}.to_json)
+          @socket.process_message(FAKE_SOCKETENV, {'t' => 'video_time', 'time' => 30}.to_json)
           @channel.current_time.should == 0
         end
       end
       
       it "should allow anyone to add_videos" do
-        @socket.process_message(FAKE_SOCKETENV, {'t' => 'add_video', 'url' => 'http://www.youtube.com/watch?v=-a7AC9__lDo', 'channel_id' => @channel.id}.to_json)
+        @socket.process_message(FAKE_SOCKETENV, {'t' => 'add_video', 'url' => 'http://www.youtube.com/watch?v=-a7AC9__lDo'}.to_json)
         @channel.videos(true).map(&:url).include?('-a7AC9__lDo').should == true
       end
       
       it "should not allow anyone to add_videos if the channel is locked" do
         @channel.update_attribute(:locked, true)
-        @socket.process_message(FAKE_SOCKETENV, {'t' => 'add_video', 'url' => 'http://www.youtube.com/watch?v=-a7AC9__lDo', 'channel_id' => @channel.id}.to_json)
+        @socket.process_message(FAKE_SOCKETENV, {'t' => 'add_video', 'url' => 'http://www.youtube.com/watch?v=-a7AC9__lDo'}.to_json)
         @channel.videos(true).map(&:url).include?('-a7AC9__lDo').should_not == true
       end
       
@@ -306,7 +306,7 @@ describe WebSocketApp do
         @channel.update_attribute(:video_limit, @channel.videos.length)
         SUBSCRIPTIONS.channel_metadata(@channel.id).video_limit.should == @channel.videos(true).length
         @channel.videos(true).map(&:url).include?('-a7AC9__lDo').should_not == true
-        @socket.process_message(FAKE_SOCKETENV, {'t' => 'add_video', 'url' => 'http://www.youtube.com/watch?v=-a7AC9__lDo', 'channel_id' => @channel.id}.to_json)
+        @socket.process_message(FAKE_SOCKETENV, {'t' => 'add_video', 'url' => 'http://www.youtube.com/watch?v=-a7AC9__lDo'}.to_json)
         @channel.videos(true).map(&:url).include?('-a7AC9__lDo').should_not == true
       end
     end
@@ -325,14 +325,14 @@ describe WebSocketApp do
         @channel.reload
         @socket.scope_for(@channel).should == 'mod'
         @video2.channel_id.should == @channel.id
-        @socket.process_message(FAKE_SOCKETENV, {'t' => 'video', 'video_id' => @video2.id, 'channel_id' => @channel.id}.to_json)
+        @socket.process_message(FAKE_SOCKETENV, {'t' => 'video', 'video_id' => @video2.id}.to_json)
         @channel.reload.current_video.should == @video2
       end
     
       it "video(url) should play a new video from the playlist" do
         @channel.reload
         @socket.scope_for(@channel).should == 'mod'
-        @socket.process_message(FAKE_SOCKETENV, {'t' => 'video', 'url' => 'http://www.youtube.com/play?v=123456', 'channel_id' => @channel.id}.to_json)
+        @socket.process_message(FAKE_SOCKETENV, {'t' => 'video', 'url' => 'http://www.youtube.com/play?v=123456'}.to_json)
         @channel.reload.current_video.url.should == '123456'
       end
     
@@ -340,7 +340,7 @@ describe WebSocketApp do
         @channel.play_item(@video)
         @channel.reload.current_video.should == @video
         @socket.scope_for(@channel).should == 'mod'
-        @socket.process_message(FAKE_SOCKETENV, {'t' => 'video_finished', 'channel_id' => @channel.id}.to_json)
+        @socket.process_message(FAKE_SOCKETENV, {'t' => 'video_finished'}.to_json)
         @channel.reload.current_video.should == @video2
       end
     
@@ -350,9 +350,9 @@ describe WebSocketApp do
           @channel.play_item(@video)
           @channel.reload.current_video.should == @video
           @socket.scope_for(@channel).should == 'mod'
-          @socket.process_message(FAKE_SOCKETENV, {'t' => 'leader', 'user_id' => @socket.user_id, 'channel_id' => @channel.id}.to_json)
+          @socket.process_message(FAKE_SOCKETENV, {'t' => 'leader', 'user_id' => @socket.user_id}.to_json)
           @socket.leader.should == true
-          @socket.process_message(FAKE_SOCKETENV, {'t' => 'video_time', 'time' => 30, 'channel_id' => @channel.id}.to_json)
+          @socket.process_message(FAKE_SOCKETENV, {'t' => 'video_time', 'time' => 30}.to_json)
           @channel.reload.current_time.should == 30
         end
       end
@@ -362,24 +362,24 @@ describe WebSocketApp do
         @socket2.process_message(FAKE_SOCKETENV, {'t' => 'auth'}.to_json)
         @socket2.process_message(FAKE_SOCKETENV, {'t' => 'subscribe', 'channel_id' => @channel.id}.to_json)
           
-        @socket2.process_message(FAKE_SOCKETENV, {'t' => 'leader', 'user_id' => @socket2.user_id, 'channel_id' => @channel.id}.to_json)
+        @socket2.process_message(FAKE_SOCKETENV, {'t' => 'leader', 'user_id' => @socket2.user_id}.to_json)
         @socket.leader.should == false
         @socket2.leader.should == false
         
-        @socket.process_message(FAKE_SOCKETENV, {'t' => 'leader', 'user_id' => @socket2.user_id, 'channel_id' => @channel.id}.to_json)
+        @socket.process_message(FAKE_SOCKETENV, {'t' => 'leader', 'user_id' => @socket2.user_id}.to_json)
         @socket.leader.should == false
         @socket2.leader.should == true
       end
       
       it "should allow moderators to add_videos if the channel is locked" do
         @channel.update_attribute(:locked, true)
-        @socket.process_message(FAKE_SOCKETENV, {'t' => 'add_video', 'url' => 'http://www.youtube.com/watch?v=-a7AC9__lDo', 'channel_id' => @channel.id}.to_json)
+        @socket.process_message(FAKE_SOCKETENV, {'t' => 'add_video', 'url' => 'http://www.youtube.com/watch?v=-a7AC9__lDo'}.to_json)
         @channel.videos(true).map(&:url).include?('-a7AC9__lDo').should == true
       end
       
       it "should allow moderators to del_videos" do
         @channel.videos(true).map(&:id).include?(@video2.id).should == true
-        @socket.process_message(FAKE_SOCKETENV, {'t' => 'del_video', 'video_id' => @video2.id, 'channel_id' => @channel.id}.to_json)
+        @socket.process_message(FAKE_SOCKETENV, {'t' => 'del_video', 'video_id' => @video2.id}.to_json)
         @channel.videos(true).map(&:id).include?(@video2.id).should_not == true
       end
     end

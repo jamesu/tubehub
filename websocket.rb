@@ -34,11 +34,11 @@ class WebSocketApp < Rack::WebSocket::Application
   end
   
   def log_error(message)
-    SUBSCRIPTIONS.logger.error "SOCKET[#{self.object_id},#{@addresses.join(':')}] #{message}"
+    SUBSCRIPTIONS.logger.error "SOCKET[#{self.object_id},#{(@addresses||[]).join(':')}] #{message}"
   end
   
   def log_info(message)
-    SUBSCRIPTIONS.logger.info "SOCKET[#{self.object_id},#{@addresses.join(':')}] #{message}"
+    SUBSCRIPTIONS.logger.info "SOCKET[#{self.object_id},#{(@addresses||[]).join(':')}] #{message}"
   end
   
   def on_message(env, data)
@@ -141,13 +141,13 @@ class WebSocketApp < Rack::WebSocket::Application
       end
     when 'message'
       # Messages are broadcast to subscribers
-      if SUBSCRIPTIONS.connection_in_channel_id?(self, message['channel_id'])
-        SUBSCRIPTIONS.send_message(message['channel_id'], 'message', {
+      if SUBSCRIPTIONS.connection_in_channel_id?(self, @current_channel_id)
+        SUBSCRIPTIONS.send_message(@current_channel_id, 'message', {
           'uid' => user_id,
           'content' => message['content']
         })
         
-        #log_info "MSG #{message['channel_id']} <#{user_id}>#{message['content']}"
+        #log_info "MSG #{@current_channel_id} <#{user_id}>#{message['content']}"
       end
     when 'usermod'
       # User wants to change their name
@@ -155,7 +155,7 @@ class WebSocketApp < Rack::WebSocket::Application
       if @current_user.nil? and !new_name.empty? and new_name != user_name and !User.find_by_eval_nick("#{new_name}#{new_tripcode}")
         @current_name = new_name
         @current_tripcode = new_tripcode
-        SUBSCRIPTIONS.send_message(message['channel_id'], 'usermod', {'user' => user_data})
+        SUBSCRIPTIONS.send_message(@current_channel_id, 'usermod', {'user' => user_data})
         log_info "MOD #{user_id}"
       end
     when 'subscribe'
@@ -195,7 +195,7 @@ class WebSocketApp < Rack::WebSocket::Application
       end
     when 'unsubscribe'
       # Unsubscribe from channel
-      channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
+      channel = SUBSCRIPTIONS.channel_metadata(@current_channel_id)
       SUBSCRIPTIONS.unsubscribe(self, channel) if channel
       @current_channel_id = nil
     when 'skip'
@@ -213,32 +213,32 @@ class WebSocketApp < Rack::WebSocket::Application
       SUBSCRIPTIONS.send_message(current_channel_id, 'skip', {'count' => skips})
     when 'leader'
       # Choose a new leader
-      if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
-        channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
+      if SUBSCRIPTIONS.has_channel_id?(@current_channel_id)
+        channel = SUBSCRIPTIONS.channel_metadata(@current_channel_id)
         if scope_for(channel) != ''
-          SUBSCRIPTIONS.set_channel_leader(message['channel_id'], message['user_id'])
+          SUBSCRIPTIONS.set_channel_leader(@current_channel_id, message['user_id'])
         end
       end
     when 'lock'
       # Lock/unlock playlist
-      if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
-        channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
+      if SUBSCRIPTIONS.has_channel_id?(@current_channel_id)
+        channel = SUBSCRIPTIONS.channel_metadata(@current_channel_id)
         if scope_for(channel) != ''
           channel.update_attribute(:locked, message['locked'])
         end
       end
     when 'kick'
       # Kick a user
-      if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
-        channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
+      if SUBSCRIPTIONS.has_channel_id?(@current_channel_id)
+        channel = SUBSCRIPTIONS.channel_metadata(@current_channel_id)
         if scope_for(channel) != ''
           SUBSCRIPTIONS.kick(message['user_id'])
         end
       end
     when 'ban'
       # Kick a user
-      if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
-        channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
+      if SUBSCRIPTIONS.has_channel_id?(@current_channel_id)
+        channel = SUBSCRIPTIONS.channel_metadata(@current_channel_id)
         if scope_for(channel) != ''
           SUBSCRIPTIONS.ban(message['user_id'])
         end
@@ -251,8 +251,8 @@ class WebSocketApp < Rack::WebSocket::Application
       # 1) Provide video id (in playlist)
       # 2) Provide video url (grabs metadata later)
       
-      if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
-        channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
+      if SUBSCRIPTIONS.has_channel_id?(@current_channel_id)
+        channel = SUBSCRIPTIONS.channel_metadata(@current_channel_id)
         if @leader || scope_for(channel) != ''
           if message['video_id']
             video = channel.videos.find_by_id(message['video_id'])
@@ -265,8 +265,8 @@ class WebSocketApp < Rack::WebSocket::Application
         end
       end
     when 'sort_videos'
-      if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
-        channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
+      if SUBSCRIPTIONS.has_channel_id?(@current_channel_id)
+        channel = SUBSCRIPTIONS.channel_metadata(@current_channel_id)
         if channel and (!channel.locked or scope_for(channel) != '')
           # Simple conform order to input list
           order = message['order']
@@ -280,8 +280,8 @@ class WebSocketApp < Rack::WebSocket::Application
         end
       end
     when 'add_video'
-      if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
-        channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
+      if SUBSCRIPTIONS.has_channel_id?(@current_channel_id)
+        channel = SUBSCRIPTIONS.channel_metadata(@current_channel_id)
         if channel and (!channel.locked or scope_for(channel) != '')
           if channel.video_limit.to_i == 0 or channel.videos.length < channel.video_limit
             video = channel.add_video(Video.get_playback_info(message['url']), {:added_by_ip => @addresses.join(','), :added_by_user => user_name_trip})
@@ -289,8 +289,8 @@ class WebSocketApp < Rack::WebSocket::Application
         end
       end
     when 'del_video'
-      if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
-        channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
+      if SUBSCRIPTIONS.has_channel_id?(@current_channel_id)
+        channel = SUBSCRIPTIONS.channel_metadata(@current_channel_id)
         if channel and scope_for(channel) != ''
           video = channel.videos.find_by_id(message['video_id'])
           if video
@@ -307,10 +307,10 @@ class WebSocketApp < Rack::WebSocket::Application
       # Note: Only leaders or moderators can do this.
       
       # Only the owner of the channel can set the video
-      #puts "#{user_id} VIDEO FINISHED #{message['channel_id']}"
+      #puts "#{user_id} VIDEO FINISHED #{@current_channel_id}"
       
-      if SUBSCRIPTIONS.has_channel_id?(message['channel_id'])
-        channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
+      if SUBSCRIPTIONS.has_channel_id?(@current_channel_id)
+        channel = SUBSCRIPTIONS.channel_metadata(@current_channel_id)
         if @leader || scope_for(channel) != ''
           channel.next_video!
           log_info "VIDEO FINISHED #{user_id}"
@@ -320,7 +320,7 @@ class WebSocketApp < Rack::WebSocket::Application
       # Set video time
       # Note: Only leaders can do this.
       
-      channel = SUBSCRIPTIONS.channel_metadata(message['channel_id'])
+      channel = SUBSCRIPTIONS.channel_metadata(@current_channel_id)
       if channel && SUBSCRIPTIONS.has_channel_id?(channel.id)
         if !message['time'].nil? and @leader
           # Adjust channel model time if delta is too large

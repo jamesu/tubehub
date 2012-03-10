@@ -137,7 +137,7 @@ $.fn.serializeObject = function()
       if (!item)
         return;
       
-      Tube.socket.sendJSON({'t': 'video', 'video_id': item.get('id'), 'channel_id':Tube.channel.get('id')});
+      Tube.socket.sendJSON({'t': 'video', 'video_id': item.get('id')});
     }
     
     PlaylistView.destroyItem = function(event) {
@@ -148,7 +148,7 @@ $.fn.serializeObject = function()
       if (!item)
         return;
       
-      Tube.socket.sendJSON({'t': 'del_video', 'video_id': item.get('id'), 'channel_id':Tube.channel.get('id')});
+      Tube.socket.sendJSON({'t': 'del_video', 'video_id': item.get('id')});
     }
     
     PlaylistView.addVideo = function(video) {
@@ -356,7 +356,6 @@ $.fn.serializeObject = function()
             Tube.offsetTime = (new Date()) - (newTime*1000);
             Tube.socket.sendJSON({
                 't': 'video_time',
-                'channel_id': Tube.channel.get('id'),
                 'time': newTime
             });
           }
@@ -373,10 +372,10 @@ $.fn.serializeObject = function()
     Tube.onNewVideo = function(url, time) {
       $('#videoTitle').text(url);
       if (Tube.leader)
-        Tube.socket.sendJSON({'t': 'video', 'url': url, 'time': time, 'channel_id': Tube.channel.get('id'), 'provider': this.video.provider});
+        Tube.socket.sendJSON({'t': 'video', 'url': url, 'time': time, 'provider': this.video.provider});
     };
     Tube.onVideoFinished = function() {
-      Tube.socket.sendJSON({'t': 'video_finished', 'channel_id': Tube.channel.get('id')});
+      Tube.socket.sendJSON({'t': 'video_finished'});
     };
     Tube.parseDuration = function(time) {
       var calc = time;
@@ -403,7 +402,7 @@ $.fn.serializeObject = function()
             Tube.socket.send(JSON.stringify(data));
         };
         Tube.socket.sendMessage = function(content) {
-            Tube.socket.sendJSON({'t': 'message', 'channel_id': Tube.channel.get('id'), 'content': content});
+            Tube.socket.sendJSON({'t': 'message', 'content': content});
         };
         Tube.pickColor = function(){
           var pick = ['red', 'green', 'blue', 'white', 'yellow'];
@@ -580,7 +579,7 @@ $.fn.serializeObject = function()
     };
     Tube.setName = function(tripcode) {
       Tube.tripcode = tripcode;
-      Tube.socket.sendJSON({'t': 'usermod', 'name': tripcode, 'channel_id': Tube.channel.get('id')});
+      Tube.socket.sendJSON({'t': 'usermod', 'name': tripcode});
     };
     Tube.onSetupUI = function() {
       // Basically we need to make sure all ui controls we need are shown
@@ -626,29 +625,29 @@ $(document).ready(function() {
     
     $('#userToolbar').on('click', '#leadButton', function(event){
       event.preventDefault();
-      Tube.socket.sendJSON({'t': 'leader', 'channel_id':Tube.channel.get('id'), 'user_id':Tube.user.get('id')});
+      Tube.socket.sendJSON({'t': 'leader', 'user_id':Tube.user.get('id')});
     });
     
     $('#userToolbar').on('click', '#skipButton', function(event){
       event.preventDefault();
-      Tube.socket.sendJSON({'t': 'skip', 'channel_id':Tube.channel.get('id')});
+      Tube.socket.sendJSON({'t': 'skip'});
     });
     
     $('#userToolbar').on('click', '#lockButton', function(event){
       event.preventDefault();
-      Tube.socket.sendJSON({'t': 'lock', 'channel_id':Tube.channel.get('id')});
+      Tube.socket.sendJSON({'t': 'lock'});
     });
     
     $('#userList').on('click', 'a.buttonKickUser', function(event){
       event.preventDefault();
       var el = $(event.target).parents('li:first');
-      Tube.socket.sendJSON({'t': 'kick', 'channel_id':Tube.channel.get('id'), 'user_id':el.attr('user_id')});
+      Tube.socket.sendJSON({'t': 'kick', 'user_id':el.attr('user_id')});
     });
     
     $('#userList').on('click', 'a.buttonBanUser', function(event){
       event.preventDefault();
       var el = $(event.target).parents('li:first');
-      Tube.socket.sendJSON({'t': 'ban', 'channel_id':Tube.channel.get('id'), 'user_id':el.attr('user_id')});
+      Tube.socket.sendJSON({'t': 'ban', 'user_id':el.attr('user_id')});
     });
     
     $('#userToolbar').on('keypress', '#nameEntry', function(event){
@@ -669,7 +668,7 @@ $(document).ready(function() {
         $('#playlist').sortable({
           update : function () {
             var order = _.map($('#playlist').sortable('toArray'), function(el){ var l=el.split('_'); return parseInt(l[l.length-1]); });
-            Tube.socket.sendJSON({'t': 'sort_videos', 'channel_id':Tube.channel.get('id'), 'order':order});
+            Tube.socket.sendJSON({'t': 'sort_videos', 'order':order});
           }
         }) 
       }
@@ -677,12 +676,12 @@ $(document).ready(function() {
     
     $('#userToolbar').on('click', '#lockButton', function(event){
       event.preventDefault();
-      Tube.socket.sendJSON({'t': 'lock', 'channel_id':Tube.channel.get('id'), 'locked':!Tube.channel.get('locked')});
+      Tube.socket.sendJSON({'t': 'lock', 'locked':!Tube.channel.get('locked')});
     });
 
     $('#playlistEntryBox').keypress(function(evt){
       if (evt.keyCode == 13 && evt.target.value != "") {
-        Tube.socket.sendJSON({'t': 'add_video', 'url': evt.target.value, 'channel_id':Tube.channel.get('id')});
+        Tube.socket.sendJSON({'t': 'add_video', 'url': evt.target.value});
         evt.target.value = '';
       }
     });
