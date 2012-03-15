@@ -9,7 +9,7 @@ set :user, "app"
 set :use_sudo, true
 
 set :scm, :git
-set :repository,  "/Users/jamesu/Projects/tubehub/.git" #"git@github.com:jamesu/tubehub.git"
+set :repository,  "git@github.com:jamesu/tubehub.git"
 set :deploy_via, :copy #:remote_cache
 set :deploy_to, "/srv/app_data/apps/#{application}"
 
