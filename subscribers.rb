@@ -47,6 +47,7 @@ class SubscriberList
   end
   
   def do_timer
+    ActiveRecord::Base.verify_active_connections!
     @metadata.each do |channel_id, channel|
       # Ignore channels with leaders
       next if @list[channel_id].index{|s|s.leader} != nil
