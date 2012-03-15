@@ -1,6 +1,6 @@
 require './core'
 
-use Rack::Session::Cookie, :key => '__testtube',
+use Rack::Session::Cookie, :key => '__tubehub',
                          :path => '/',
                          :expire_after => 14400, # In seconds
                          :secret => '1209iFNSJDNF*8&Y&YHH__'
