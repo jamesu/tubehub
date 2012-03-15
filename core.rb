@@ -492,6 +492,8 @@ end
 
 # Init Environment
 
+APP_CONFIG = YAML.load(File.read('config/app.yml'))[ENV["RACK_ENV"]] || {}
+
 dbconfig = YAML.load(File.read('config/database.yml'))
 #Time.zone = 'UTC'
 ActiveRecord::Base.time_zone_aware_attributes = true

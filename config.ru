@@ -1,9 +1,9 @@
 require './core'
 
-use Rack::Session::Cookie, :key => '__tubehub',
+use Rack::Session::Cookie, :key => APP_CONFIG['cookie_name'],
                          :path => '/',
                          :expire_after => 14400, # In seconds
-                         :secret => '1209iFNSJDNF*8&Y&YHH__'
+                         :secret => APP_CONFIG['cookie_key']
 
 map '/ws' do
   run WebSocketApp.new
