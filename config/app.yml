@@ -2,6 +2,7 @@ defaults: &defaults
   site_name: TubeHub
   cookie_name: __tubehub
   cookie_key: 1209iFNSJDNF*8&Y&YHH__
+  secure_tripcode_secret: CHANGE_ME
   
 production:
   <<: *defaults

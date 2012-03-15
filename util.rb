@@ -4,7 +4,7 @@ require 'base64'
 require 'rack/utils'
 
 module Tripcode
-  TRIP_SECRET = "CHANGEME"
+  TRIP_SECRET = APP_CONFIG['secure_tripcode_secret']||"CHANGEME"
   TRIP_REGEXP = /^(.*?)((?<!&)#|\#)(.*)$/
   TRIP_SECURE_REGEXP = /(?:\#)(?<!&#)(?:\#)*(.*)$/
 

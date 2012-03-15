@@ -8,6 +8,7 @@ gem 'json'
 gem 'eventmachine'
 gem 'em-http-request'
 gem 'thin'
+gem 'mysql', :require => false
 
 gem 'websocket-rack'
 gem 'foreman'

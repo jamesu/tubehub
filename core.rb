@@ -46,6 +46,7 @@ class App < Sinatra::Base
       if request.xhr?
         status 401
       else
+        session[:return_to] = request.path
         redirect '/auth'
       end
       halt

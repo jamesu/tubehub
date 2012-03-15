@@ -1,6 +1,7 @@
+# encoding: UTF-8
 admin = User.create!(:name => 'admin', :nick => 'admin', :password => 'password', :password_confirm => 'password')
 admin.update_attribute(:admin, true)
-channel = Channel.create!(:name => 'Welcome to TubeHub', :user_id => admin.id)
+channel = Channel.create!(:name => 'Welcome to TubeHub', :user_id => admin.id, :skip_limit => 50, :video_limit => 100)
 
 
 # Initial video
