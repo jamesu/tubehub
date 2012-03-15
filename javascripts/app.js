@@ -397,7 +397,7 @@ $.fn.serializeObject = function()
         Tube.setStatus('info', 'Connecting...');
         Tube.connected = true;
 
-        Tube.socket = new WebSocket('ws://' + document.location.host + '/ws');
+        Tube.socket = new WebSocket(WEB_SOCKET_PATH);
         Tube.socket.sendJSON = function(data) {
             Tube.socket.send(JSON.stringify(data));
         };

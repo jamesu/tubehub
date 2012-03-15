@@ -5,7 +5,9 @@ defaults: &defaults
   
 production:
   <<: *defaults
-development:
+  # Backend port for websockets
+  websocket_port: 5000
+development:  
   <<: *defaults
 test:
   <<: *defaults
