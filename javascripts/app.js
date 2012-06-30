@@ -137,7 +137,7 @@ $.fn.serializeObject = function()
       if (!item)
         return;
       
-      Tube.socket.sendJSON({'t': 'video', 'video_id': item.get('id')});
+      Tube.sendMessage({'t': 'video', 'video_id': item.get('id')});
     }
     
     PlaylistView.destroyItem = function(event) {
@@ -148,7 +148,7 @@ $.fn.serializeObject = function()
       if (!item)
         return;
       
-      Tube.socket.sendJSON({'t': 'del_video', 'video_id': item.get('id')});
+      Tube.sendMessage({'t': 'del_video', 'video_id': item.get('id')});
     }
     
     PlaylistView.addVideo = function(video) {
@@ -354,7 +354,7 @@ $.fn.serializeObject = function()
           var currentTime = ((new Date()) - Tube.offsetTime) / 1000.0;
           if ((newTime - currentTime < -Tube.video.timeMargin) || (newTime - currentTime > Tube.video.timeMargin)) {
             Tube.offsetTime = (new Date()) - (newTime*1000);
-            Tube.socket.sendJSON({
+            Tube.sendMessage({
                 't': 'video_time',
                 'time': newTime
             });
@@ -372,10 +372,10 @@ $.fn.serializeObject = function()
     Tube.onNewVideo = function(url, time) {
       $('#videoTitle').text(url);
       if (Tube.leader)
-        Tube.socket.sendJSON({'t': 'video', 'url': url, 'time': time, 'provider': this.video.provider});
+        Tube.sendMessage({'t': 'video', 'url': url, 'time': time, 'provider': this.video.provider});
     };
     Tube.onVideoFinished = function() {
-      Tube.socket.sendJSON({'t': 'video_finished'});
+      Tube.sendMessage({'t': 'video_finished'});
     };
     Tube.parseDuration = function(time) {
       var calc = time;
@@ -393,97 +393,95 @@ $.fn.serializeObject = function()
     Tube.removePlaylistItem = function(item) {
       Tube.playlist.remove(item.id);
     };
+    Tube.sendMessage = function(data) {
+      Tube.socket.send(JSON.stringify(data));
+    };
+    Tube.sendChat = function(content) {
+      Tube.sendMessage({'t': 'message', 'content': content});
+    }
+
+    Tube.messageHandlers = {
+      'hello': function(msg) { Tube.onauthenticated(msg); },
+      'goaway': function(msg) { Tube.onauthfailed(msg); },
+      'userjoined': function(msg) {
+          var user = Tube.users.get(msg.user.id);
+          if (user)
+            Tube.users.remove(msg.user.id);
+          Tube.users.add(msg.user);
+          user = Tube.users.get(msg.user.id);
+          if (Tube.user.get('id') == msg.user.id) {
+            Tube.mod = msg['scope'] != '';
+            Tube.leader = msg['leader'] ? true : false;
+            Tube.users.each(function(user){ user.trigger('change') }); // hack: update mod ui controls
+            Tube.onSetupUI();
+          }
+          Tube.userList[msg.user.id] = user;
+       },
+      'userleft': function(msg) { Tube.users.remove(msg.user.id); },
+      'usermod': function(msg) {
+          var oldName = Tube.userList[msg.user.id].get('name');
+          var oldTripcode = Tube.userList[msg.user.id].get('tripcode');
+          Tube.userList[msg.user.id].set(msg.user);
+          if (Tube.user.get('id') == msg.user.id) { // Tube.user is separate
+            Tube.user.set(msg.user);
+          }
+          // Handle name changes
+          if (msg.user.name && msg.user.name != oldName) {
+             Tube.chat.onchangename(msg.user.id, oldName, oldTripcode);
+             if (Tube.user.get('id') == msg.user.id) {
+                // Remember our tripcode
+                $.ajax({
+                    type: 'POST',
+                    contentType: 'json',
+                    data: JSON.stringify({name: Tube.tripcode}),
+                    url: '/auth/name'});
+            }
+          }
+          // Handle leader changes
+          if (msg.user.leader) {
+             Tube.leader = Tube.user.get('id') == msg.user.id;
+             Tube.chat.onchangeleader(Tube.userList[msg.user.id]);
+          }
+      },
+      'message': function(msg) { Tube.chat.onmessage(msg.uid, msg.content); },
+      'playlist_video': function(msg) { Tube.addPlaylistItem(msg); },
+      'playlist_video_removed': function(msg) { Tube.removePlaylistItem(msg); },
+      'video': function(msg) {
+          if (!Tube.admin || Tube.video == null || msg.force) {
+            Tube.setVideo(msg);
+            Tube.channel.set({'skip': 0});
+          }
+      },
+      'video_time': function(msg) {
+          // Set the time of the video, ignoring minor offsets
+          if (!Tube.admin && Tube.video && Tube.video.control) {
+              var currentTime = Tube.video.currentTime();
+              if ((msg.time - currentTime < -Tube.video.timeMargin) || (msg.time - currentTime > Tube.video.timeMargin)) {
+                  //console.log('Adjust offset:', msg.time - currentTime);
+                  Tube.setTime(msg.time);
+              }
+          }
+      },
+      'chanmod': function(msg) {
+        if (Tube.channel.get('id') == msg.id) {
+          Tube.channel.set(msg);
+        }
+      },
+      'skip': function(msg) { Tube.channel.set({'skip': msg.count}); }
+    };
+
     Tube.connect = function() {
         Tube.setStatus('info', 'Connecting...');
         Tube.connected = true;
 
         Tube.socket = new WebSocket(WEB_SOCKET_PATH);
-        Tube.socket.sendJSON = function(data) {
-            Tube.socket.send(JSON.stringify(data));
-        };
-        Tube.socket.sendMessage = function(content) {
-            Tube.socket.sendJSON({'t': 'message', 'content': content});
-        };
-        Tube.pickColor = function(){
-          var pick = ['red', 'green', 'blue', 'white', 'yellow'];
-          return pick[Math.floor(Math.random()*pick.length)];
-        };
         Tube.socket.onmessage = function(evt) {
             var message = JSON.parse(evt.data);
             //console.log(message.t,message);
             //$('#debug').append('<p>' + evt.data + '</p>');
 
-            if (message.t == 'hello') {
-                Tube.socket.onauthenticated(message);
-            } else if (message.t == 'goaway') {
-                Tube.socket.onauthfailed(message);
-            } else if (message.t == 'userjoined') {
-                var user = Tube.users.get(message.user.id);
-                if (user)
-                  Tube.users.remove(message.user.id);
-                Tube.users.add(message.user);
-                user = Tube.users.get(message.user.id);
-                if (Tube.user.get('id') == message.user.id) {
-                  Tube.mod = message['scope'] != '';
-                  Tube.leader = message['leader'] ? true : false;
-                  Tube.users.each(function(user){ user.trigger('change') }); // hack: update mod ui controls
-                  Tube.onSetupUI();
-                }
-                Tube.userList[message.user.id] = user;
-            } else if (message.t == 'userleft') {
-                Tube.users.remove(message.user.id);
-            } else if (message.t == 'usermod') {
-                var oldName = Tube.userList[message.user.id].get('name');
-                var oldTripcode = Tube.userList[message.user.id].get('tripcode');
-                Tube.userList[message.user.id].set(message.user);
-                if (Tube.user.get('id') == message.user.id) { // Tube.user is separate
-                  Tube.user.set(message.user);
-                }
-                // Handle name changes
-                if (message.user.name && message.user.name != oldName) {
-                   Tube.chat.onchangename(message.user.id, oldName, oldTripcode);                   
-                   if (Tube.user.get('id') == message.user.id) {
-                      // Remember our tripcode
-                      $.ajax({
-                          type: 'POST',
-                          contentType: 'json',
-                          data: JSON.stringify({name: Tube.tripcode}),
-                          url: '/auth/name'});
-                  }
-                }
-                // Handle leader changes
-                if (message.user.leader) {
-                   Tube.leader = Tube.user.get('id') == message.user.id;
-                   Tube.chat.onchangeleader(Tube.userList[message.user.id]);
-                }
-                
-            } else if (message.t == 'message') {
-                Tube.chat.onmessage(message.uid, message.content);
-            } else if (message.t == 'playlist_video') {
-                Tube.addPlaylistItem(message);
-            } else if (message.t == 'playlist_video_removed') {
-                Tube.removePlaylistItem(message);
-            } else if (message.t == 'video') {
-                if (!Tube.admin || Tube.video == null || message.force) {
-                  Tube.setVideo(message);
-                  Tube.channel.set({'skip': 0});
-                }
-            } else if (message.t == 'video_time') {
-                // Set the time of the video, ignoring minor offsets
-                if (!Tube.admin && Tube.video && Tube.video.control) {
-                    var currentTime = Tube.video.currentTime();
-                    if ((message.time - currentTime < -Tube.video.timeMargin) || (message.time - currentTime > Tube.video.timeMargin)) {
-                        //console.log('Adjust offset:', message.time - currentTime);
-                        Tube.setTime(message.time);
-                    }
-                }
-            } else if (message.t == 'chanmod') {
-              if (Tube.channel.get('id') == message.id) {
-                Tube.channel.set(message);
-              }
-            } else if (message.t == 'skip') {
-              Tube.channel.set({'skip': message.count});
-            }
+            if (Tube.messageHandlers[message.t])
+              Tube.messageHandlers[message.t](message);
         };
         Tube.socket.onerror = function() {
           this.onclose();
@@ -511,7 +509,7 @@ $.fn.serializeObject = function()
                 type: 'POST',
                 url: '/auth/socket_token',
                 success: function(data) {
-                    Tube.socket.sendJSON({
+                    Tube.sendMessage({
                         't': 'auth',
                         'auth_token': data.auth_token,
                         'name': data.name
@@ -521,7 +519,7 @@ $.fn.serializeObject = function()
                 error: function(xhr, status, error) {
                     if (error == 'Unauthorized') {
                       var name = Tube.tripcode ? Tube.tripcode : 'Anonymous'
-	                    Tube.socket.sendJSON({
+	                    Tube.sendMessage({
 	                        't': 'auth',
 	                        'name': name
 	                    });
@@ -531,43 +529,44 @@ $.fn.serializeObject = function()
                 }
             });
         };
-        Tube.socket.onauthenticated = function(message) {
-          // Verify we are using the correct version
-          if (message.api != Tube.api) {
-            window.location.reload();
-            return;
-          }
-          if (Tube.user)
-             Tube.user.unbind();
-          Tube.user = new TubeUser(message.user);
-          Tube.socket.sendJSON({
-              't': 'subscribe',
-              'channel_id': Tube.channel.get('id')
-          });
-          
-          // Remember our tripcode
-          $.ajax({
-              type: 'POST',
-              contentType: 'json',
-              data: JSON.stringify({name: Tube.tripcode}),
-              url: '/auth/name'});
-          Tube.clearStatus();
-        };
-        Tube.socket.onauthfailed = function(message) {
-           if (message.reason == 'ban') {
-             Tube.setStatus('critical', 'You are banned from this channel: ' + message.comment);
-           } else {
-             Tube.setStatus('critical', 'Authorization failed');
-             //console.log('OTHER REASON AUTH FAILED:', message);
-           }
-           Tube.connected = false;
-           Tube.socket.close();
-        };
     };
     Tube.disconnect = function() {
         Tube.connected = false;
         Tube.socket.disconnect();
         Tube.socket = null;
+    };
+
+    Tube.onauthenticated = function(message) {
+      // Verify we are using the correct version
+      if (message.api != Tube.api) {
+        window.location.reload();
+        return;
+      }
+      if (Tube.user)
+         Tube.user.unbind();
+      Tube.user = new TubeUser(message.user);
+      Tube.sendMessage({
+          't': 'subscribe',
+          'channel_id': Tube.channel.get('id')
+      });
+      
+      // Remember our tripcode
+      $.ajax({
+          type: 'POST',
+          contentType: 'json',
+          data: JSON.stringify({name: Tube.tripcode}),
+          url: '/auth/name'});
+      Tube.clearStatus();
+    };
+    Tube.onauthfailed = function(message) {
+       if (message.reason == 'ban') {
+         Tube.setStatus('critical', 'You are banned from this channel: ' + message.comment);
+       } else {
+         Tube.setStatus('critical', 'Authorization failed');
+         //console.log('OTHER REASON AUTH FAILED:', message);
+       }
+       Tube.connected = false;
+       Tube.socket.close();
     };
 
     Tube.setStatus = function(code, message) {
@@ -579,7 +578,7 @@ $.fn.serializeObject = function()
     };
     Tube.setName = function(tripcode) {
       Tube.tripcode = tripcode;
-      Tube.socket.sendJSON({'t': 'usermod', 'name': tripcode});
+      Tube.sendMessage({'t': 'usermod', 'name': tripcode});
     };
     Tube.onSetupUI = function() {
       // Basically we need to make sure all ui controls we need are shown
@@ -617,7 +616,7 @@ $(document).ready(function() {
           if (newName)
             Tube.setName(newName);
         } else {
-          Tube.socket.sendMessage(evt.target.value);
+          Tube.sendChat(evt.target.value);
         }
         evt.target.value = '';
       }
@@ -625,29 +624,29 @@ $(document).ready(function() {
     
     $('#userToolbar').on('click', '#leadButton', function(event){
       event.preventDefault();
-      Tube.socket.sendJSON({'t': 'leader', 'user_id':Tube.user.get('id')});
+      Tube.sendMessage({'t': 'leader', 'user_id':Tube.user.get('id')});
     });
     
     $('#userToolbar').on('click', '#skipButton', function(event){
       event.preventDefault();
-      Tube.socket.sendJSON({'t': 'skip'});
+      Tube.sendMessage({'t': 'skip'});
     });
     
     $('#userToolbar').on('click', '#lockButton', function(event){
       event.preventDefault();
-      Tube.socket.sendJSON({'t': 'lock'});
+      Tube.sendMessage({'t': 'lock'});
     });
     
     $('#userList').on('click', 'a.buttonKickUser', function(event){
       event.preventDefault();
       var el = $(event.target).parents('li:first');
-      Tube.socket.sendJSON({'t': 'kick', 'user_id':el.attr('user_id')});
+      Tube.sendMessage({'t': 'kick', 'user_id':el.attr('user_id')});
     });
     
     $('#userList').on('click', 'a.buttonBanUser', function(event){
       event.preventDefault();
       var el = $(event.target).parents('li:first');
-      Tube.socket.sendJSON({'t': 'ban', 'user_id':el.attr('user_id')});
+      Tube.sendMessage({'t': 'ban', 'user_id':el.attr('user_id')});
     });
     
     $('#userToolbar').on('keypress', '#nameEntry', function(event){
@@ -668,7 +667,7 @@ $(document).ready(function() {
         $('#playlist').sortable({
           update : function () {
             var order = _.map($('#playlist').sortable('toArray'), function(el){ var l=el.split('_'); return parseInt(l[l.length-1]); });
-            Tube.socket.sendJSON({'t': 'sort_videos', 'order':order});
+            Tube.sendChat({'t': 'sort_videos', 'order':order});
           }
         }) 
       }
@@ -676,12 +675,12 @@ $(document).ready(function() {
     
     $('#userToolbar').on('click', '#lockButton', function(event){
       event.preventDefault();
-      Tube.socket.sendJSON({'t': 'lock', 'locked':!Tube.channel.get('locked')});
+      Tube.sendMessage({'t': 'lock', 'locked':!Tube.channel.get('locked')});
     });
 
     $('#playlistEntryBox').keypress(function(evt){
       if (evt.keyCode == 13 && evt.target.value != "") {
-        Tube.socket.sendJSON({'t': 'add_video', 'url': evt.target.value});
+        Tube.sendMessage({'t': 'add_video', 'url': evt.target.value});
         evt.target.value = '';
       }
     });

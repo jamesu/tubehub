@@ -165,40 +165,6 @@ class App < Sinatra::Base
     end
   end
   
-  # Force set a video
-  post '/set_video' do
-    login_required
-    content_type :json
-    channel = Channel.find_by_id(params[:channel_id])
-    if channel
-      if channel.can_be_moderated_by(current_user)
-        # Determine what we want to play
-        video_info = if params[:video_id] && params[:provider]
-          {:video_id => params[:video_id], :provider => params[:provider], :time => params[:time].to_i}
-        elsif params[:url]
-          Video.get_playback_info(params[:url])
-        else
-          {:video_id => '', :provider => nil}
-        end
-        
-        if video_info[:video_id].nil? or video_info[:provider].empty?
-          {:error => 'UnknownVideo'}
-        else
-          # Update channel video
-          channel.set_current_video_from_info(video_info, params[:time].to_i, Time.now)
-          channel.save
-          current_time = channel.current_video.current_time
-          
-          {:video_id => channel.current_video.url, :provider => channel.current_video.provider, :time => current_time}
-        end
-      else
-        {:error => 'InsufficientPermissions'}
-      end
-    else
-      {:error => 'UnknownChannel'}
-    end.to_json
-  end
-  
   # Token for socket identification
   post '/auth/socket_token' do
     data = JSON.parse(request.body.read) rescue {}
@@ -507,7 +473,7 @@ end
 
 JSON.create_id = nil
 
-%w{models subscribers websocket util}.each do |lib|
+%w{models subscribers web_socket_app util}.each do |lib|
   require File.join(File.dirname(__FILE__), lib)
 end
 
