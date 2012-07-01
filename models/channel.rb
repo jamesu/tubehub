@@ -8,7 +8,7 @@ class Channel < ActiveRecord::Base
   before_update :set_update_info
   after_update :notify_updates
   
-  attr_accessible :name, :permalink, :banner, :footer, :moderator_list, :skip_limit, :connection_limit, :video_limit, :locked
+  attr_accessible :name, :permalink, :banner, :footer, :moderator_list, :skip_limit, :connection_limit, :video_limit, :backend_server, :locked
   
   validates_presence_of :name
   validates_presence_of :permalink
@@ -233,7 +233,8 @@ class Channel < ActiveRecord::Base
       :skip_limit => skip_limit,
       :connection_limit => connection_limit,
       :locked => locked,
-      :video_limit => video_limit
+      :video_limit => video_limit,
+      :backend_server => backend_server
     }
     
     if options[:admin]

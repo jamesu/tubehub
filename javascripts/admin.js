@@ -90,6 +90,10 @@
     <label for="chan_footer">Footer</label>\
     <textarea id="chan_footer" name="footer" type="text" rows="20" cols="60"><%= channel.escape("footer") %></textarea>\
   </div>\
+  <div>\
+    <label for="chan_backend_server">Backend server port (optional for single server)</label>\
+    <input id="chan_backend_server" name="backend_server" type="text" value="<%= channel.escape("backend_server") %>"/>\
+  </div>\
   <button type="submit">Create</button>\
   Or <a href="#" class="cancel">Cancel</a>\
   </form>\
@@ -111,6 +115,10 @@
   <div>\
     <label for="chan_footer">Footer</label>\
     <textarea id="chan_footer" name="footer" type="text" rows="20" cols="60"><%= channel.escape("footer") %></textarea>\
+  </div>\
+  <div>\
+    <label for="chan_backend_server">Backend server port (optional for single server)</label>\
+    <input id="chan_backend_server" name="backend_server" type="text" value="<%= channel.escape("backend_server") %>"/>\
   </div>\
   <div>\
     <label for="chan_moderators">Moderators</label>\

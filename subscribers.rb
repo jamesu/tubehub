@@ -8,6 +8,37 @@ class SubscriberList
     @connections = []
     @logger = Logger.new(opts[:log]||STDOUT)
   end
+
+  def ident
+    ENV['PORT']
+  end
+
+  def reload_channels
+    # Determine which channels we are supposed to admin
+    channels = APP_CONFIG['single_server'] ? Channel.all : Channel.where(:backend_server => ident)
+    channel_ids = channels.map(&:id)
+
+    to_remove = @list.keys - channel_ids
+    to_add = channel_ids - @list.keys
+
+    # Regster new channels
+    to_add.each do |channel_id|
+      @list[channel_id] = []
+      @metadata[channel_id] = Channel.find_by_id(channel_id)
+    end
+
+    # Kick everyone in previous channels
+    to_remove.each do |channel_id|
+      @list[channel_id].each do |con|
+        con.send_message({'t' => 'reload'})
+        con.close_websocket
+      end
+      @list[channel_id].clear
+      @list.remove(channel_id)
+    end
+
+    puts "Active channels: #{@list.keys}"
+  end
   
   def logger
     @logger
@@ -172,11 +203,11 @@ class SubscriberList
   end
   
   def subscribe(connection, channel)
+    return false if !@list.has_key?(channel.id)
+
     permission_scope = connection.scope_for(channel)
     num_skips = 0
     connection.leader = false
-    @list[channel.id] ||= []
-    @metadata[channel.id] ||= channel
     @list[channel.id].each{|socket| socket.send_message({'t' => 'userjoined', 'user' => connection.user_data, 'scope' => permission_scope})}
     @list[channel.id] << connection
     @list[channel.id].each do |socket|
@@ -188,6 +219,8 @@ class SubscriberList
     if num_skips > 0
       connection.send_message({'t' => 'skip', 'count' => num_skips})
     end
+
+    true
   end
   
   def unsubscribe(connection, channel=nil)

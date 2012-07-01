@@ -1,10 +1,10 @@
 <% 
   set_tab :"chan_#{@channel.id}"
-  ws_port = APP_CONFIG['websocket_port']
+  ws_port = channel_port(@channel)
 %>
 <script type="text/javascript">
 var parts = document.location.host.split(':');
-var port = parts.length > 1 ? (':'+parts[1]) : '<%= ws_port ? ":#{ws_port}" : '' %>';
+var port = ':<%= ws_port %>';
 WEB_SOCKET_PATH = 'ws://' + document.location.host.split(':')[0] + port + '/ws';
 </script>
 <div id="chanInfo">

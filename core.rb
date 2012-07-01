@@ -47,6 +47,7 @@ else
 end
 
 EM.next_tick do
+  SUBSCRIPTIONS.reload_channels
   SUBSCRIPTIONS.start_timer
 
   unless APP_CONFIG['single_server']

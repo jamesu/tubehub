@@ -97,6 +97,16 @@ class App < Sinatra::Base
         "<li id=\"tab_#{tab[:id]}\" class=\"#{tab[:class]}\"><a href=\"#{tab[:url]}\" #{current == tab[:id] ? 'class="active"' : ''}>#{escape_html tab[:name]}</a></li>"
       end.join('')
     end
+
+    def channel_port(channel)
+      if APP_CONFIG['single_server']
+        # Determine from config
+        APP_CONFIG['websocket_port']
+      else
+        # Determine from channel info
+        channel.backend_server
+      end
+    end
   end
 
   get '/' do

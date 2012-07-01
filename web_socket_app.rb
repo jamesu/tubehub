@@ -169,26 +169,29 @@ class WebSocketApp < Rack::WebSocket::Application
         end
         
         #puts "SUBSCRIBING TO CHANNEL #{channel.name} (#{channel.current_video.try(:url)})"
-        SUBSCRIPTIONS.subscribe(self, channel)
-        @current_channel_id = channel.id
-        log_info "SUBSCRIBED #{user_id} #{channel.id}"
-        
-        # Get current video
-        if channel.current_video
-          #puts "VIDEO? #{channel.current_video.url} #{channel.current_video.provider}"
-          send_message(channel.current_video.to_info.merge({
-                        't' => 'video',
-                        'time' => channel.current_time,
-                        'force' => true}))
-        end
-        
-        # Get current playlist
-        videos = channel.videos.order('position ASC')
-        unless videos.empty?
-          videos.each do |video|
-            info = video.to_info.merge({'t' => 'playlist_video'})
-            send_message(info)
+        if SUBSCRIPTIONS.subscribe(self, channel)
+          @current_channel_id = channel.id
+          log_info "SUBSCRIBED #{user_id} #{channel.id}"
+          
+          # Get current video
+          if channel.current_video
+            #puts "VIDEO? #{channel.current_video.url} #{channel.current_video.provider}"
+            send_message(channel.current_video.to_info.merge({
+                          't' => 'video',
+                          'time' => channel.current_time,
+                          'force' => true}))
           end
+          
+          # Get current playlist
+          videos = channel.videos.order('position ASC')
+          unless videos.empty?
+            videos.each do |video|
+              info = video.to_info.merge({'t' => 'playlist_video'})
+              send_message(info)
+            end
+          end
+        else
+          send_message({'t' => 'goaway', 'reason' => 'nothere'})
         end
       else
         send_message({'t' => 'goaway', 'reason' => 'notfound'})

@@ -15,6 +15,9 @@ class RedisSubscriberList < SubscriberList
     @connections = []
     stop_timer
   end
+
+  def reload_channels
+  end
   
   # Refresh user data (e.g. after updating a user)
   def refresh_users
