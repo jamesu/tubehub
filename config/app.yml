@@ -3,6 +3,10 @@ defaults: &defaults
   cookie_name: __tubehub
   cookie_key: 1209iFNSJDNF*8&Y&YHH__
   secure_tripcode_secret: CHANGE_ME
+
+  #single_server: false
+  redis_url: redis://127.0.0.1:6379/0
+  redis_channel: tubehub
   
 production:
   <<: *defaults
@@ -12,3 +16,4 @@ development:
   <<: *defaults
 test:
   <<: *defaults
+  single_server: true

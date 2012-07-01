@@ -1,6 +1,6 @@
 require './core'
 
-# Single server mode
+# Backend server
 
 use Rack::Session::Cookie, :key => APP_CONFIG['cookie_name'],
                          :path => '/',
@@ -9,8 +9,4 @@ use Rack::Session::Cookie, :key => APP_CONFIG['cookie_name'],
 
 map '/ws' do
   run WebSocketApp.new
-end
-
-map '/' do
-  run App.new
 end

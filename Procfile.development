@@ -1,1 +1,2 @@
-web: bundle exec thin-websocket -e development -R config.ru start -p $PORT
+web: bundle exec thin-websocket -e development -R config_frontend.ru start -p $PORT
+web_slave: bundle exec thin-websocket -e development -R config_backend.ru start -p 5004

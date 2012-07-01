@@ -13,6 +13,7 @@ gem 'mysql', :require => false
 gem 'websocket-rack'
 gem 'foreman'
 gem 'uglifier'
+gem 'em-hiredis'
 
 group :test do
   gem 'rspec'
