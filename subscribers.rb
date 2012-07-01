@@ -247,4 +247,29 @@ class SubscriberList
       @connections.delete(connection)
     end
   end
+
+  # Handles messages from redis channel
+  def handle_redis_event(event)
+    puts "REDIS HANDLE #{event.inspect}"
+    case event['t']
+    when 'msg'
+      if has_channel_id?(event['channel_id'])
+        send_message(event['channel_id'], event['msg_t'], event['data'])
+      end
+    when 'refresh_users'
+      refresh_users
+    when 'refresh_channels'
+      refresh_channels
+    when 'reset_skips'
+      reset_skips(event['channel_id'])
+    when 'kick'
+      kick(event['user_id'])
+    when 'kick_ip'
+      kick_ip(event['ip'])
+    when 'ban'
+    when 'setleader'
+      set_channel_leader(event['channel_id'], event['leader_id'])
+
+    end
+  end
 end

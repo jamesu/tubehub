@@ -21,11 +21,11 @@ class RedisSubscriberList < SubscriberList
   
   # Refresh user data (e.g. after updating a user)
   def refresh_users
-    @connections.each{|c| c.current_user.reload if c.current_user}
+    $redis.publish(APP_CONFIG['redis_channel'], {'t' => 'refresh_users'}.to_json)
   end
   
   def refresh_channels
-    @metadata.keys.each{|k| @metadata[k] = Channel.find_by_id(@metadata[k].id) }
+    $redis.publish(APP_CONFIG['redis_channel'], {'t' => 'refresh_channels'}.to_json)
   end
   
   def channel_metadata(channel_id)
@@ -33,7 +33,7 @@ class RedisSubscriberList < SubscriberList
   end
   
   def reset_skips(channel_id)
-	  $redis.publish(APP_CONFIG['redis_channel'], {'t' => 'reset_skips'}.to_json)
+	  $redis.publish(APP_CONFIG['redis_channel'], {'t' => 'reset_skips', 'channel_id' => channel_id}.to_json)
   end
   
   def stats_enumerate
@@ -44,10 +44,9 @@ class RedisSubscriberList < SubscriberList
   end
   
   def send_message(destination, type, message)
-    real_message = type.nil? ? message : (message||{}).merge('t' => type)
     if destination.respond_to?(:each)
       destination.each do |channel|
-        send_message(channel, nil, real_message)
+        send_message(channel, type, message)
       end
     else
       channel_id = if destination.class == Channel
@@ -57,7 +56,7 @@ class RedisSubscriberList < SubscriberList
       end
 
       # Dispatch to redis
-      $redis.publish(APP_CONFIG['redis_channel'], {'t' => 'msg', 'data' => real_message, 'channel_id' => channel_id}.to_json)
+      $redis.publish(APP_CONFIG['redis_channel'], {'t' => 'msg', 'msg_t' => type, 'data' => message, 'channel_id' => channel_id}.to_json)
     end
   end
   
@@ -98,11 +97,11 @@ class RedisSubscriberList < SubscriberList
   end
   
   def kick_ip(ip)
-  	$redis.publish(APP_CONFIG['redis_channel'], {'t' => 'kick', 'address' => ip}.to_json)
+  	$redis.publish(APP_CONFIG['redis_channel'], {'t' => 'kick_ip', 'ip' => ip}.to_json)
   end
   
   def set_channel_leader(channel_id, leader_id)
-  	$redis.publish(APP_CONFIG['redis_channel'], {'t' => 'setleader', 'leader' => leader_id}.to_json)
+  	$redis.publish(APP_CONFIG['redis_channel'], {'t' => 'setleader', 'channel_id' => channel_id, 'leader_id' => leader_id}.to_json)
   end
   
   def register_connection(connection)

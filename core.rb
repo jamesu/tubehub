@@ -55,10 +55,11 @@ EM.next_tick do
     $redis_listen = EM::Hiredis.connect(APP_CONFIG['redis_url'])
     $redis = EM::Hiredis.connect(APP_CONFIG['redis_url'])
 
-    $redis_listen.subscribe APP_CONFIG['redis_channel']
-    $redis_listen.on(:message) do |channel, msg|
-      data = JSON.parse(msg)
-      puts data.inspect
+    if ENV['TUBEHUB_MODE'] == 'backend'
+      $redis_listen.subscribe APP_CONFIG['redis_channel']
+      $redis_listen.on(:message) do |channel, msg|
+        SUBSCRIPTIONS.handle_redis_event((JSON.parse(msg) rescue {}))
+      end
     end
   end
 
