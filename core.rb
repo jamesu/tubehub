@@ -19,6 +19,7 @@ JS_CACHE = {}
 # Init Environment
 
 APP_CONFIG = YAML.load(File.read('config/app.yml'))[ENV["RACK_ENV"]] || {}
+APP_CONFIG['single_server'] = ENV['TUBEHUB_MODE'].nil?
 
 dbconfig = YAML.load(File.read('config/database.yml'))
 #Time.zone = 'UTC'

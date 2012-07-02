@@ -101,7 +101,7 @@ class App < Sinatra::Base
     def channel_port(channel)
       if APP_CONFIG['single_server']
         # Determine from config
-        APP_CONFIG['websocket_port']
+        APP_CONFIG['websocket_port'] || ENV['PORT']
       else
         # Determine from channel info
         channel.backend_server
