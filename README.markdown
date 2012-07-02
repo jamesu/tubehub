@@ -29,10 +29,10 @@ To administer, go to [http://localhost:5000/admin](http://localhost:5000/admin) 
 
 TubeHub can optionally be run in "multiple server" mode. With this you can run multiple backend services for each channel.
 
-A [http://redis.io/](Redis) server is required to facilitate communication between the frontend and backend. You can point TubeHub to your redis server in app.yml:
+A [Redis](http://redis.io/) server is required to facilitate communication between the frontend and backend. You can point TubeHub to your redis server in app.yml:
 
-  redis_url: redis://127.0.0.1:6379/0
-  redis_channel: tubehub
+	redis_url: redis://127.0.0.1:6379/0
+	redis_channel: tubehub
 
 Set the "TUBEHUB_MODE" environment variable to either "frontend" for the web service, or "backend" for the websocket server. And example of this can be found in Procfile.multi.development:
 
