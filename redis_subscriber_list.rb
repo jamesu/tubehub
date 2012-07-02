@@ -61,7 +61,7 @@ class RedisSubscriberList < SubscriberList
   end
   
   def has_channel_id?(channel)
-  	$redis.get("chan:#{channel_id}:provider") != nil
+    false
   end
   
   def connection_in_channel_id?(connection, channel)
@@ -85,7 +85,7 @@ class RedisSubscriberList < SubscriberList
   end
   
   def skip_count_in_channel_id(channel_id)
-  	$redis.get("chan:#{channel_id}:skip").to_i
+    $redis.get("chan:#{channel_id}:skip_count").to_i
   end
   
   def kick(user_id)

@@ -40,16 +40,16 @@ ActiveRecord::Base.establish_connection dbconfig[ENV['RACK_ENV']]
 
 
 # Redis
-if ENV['TUBEHUB_MODE'] == 'frontend' and !APP_CONFIG['single_server']
+if ENV['TUBEHUB_MODE'] == 'frontend'
   SUBSCRIPTIONS = RedisSubscriberList.new
 else
   SUBSCRIPTIONS = SubscriberList.new
 end
 
-EM.next_tick do
-  SUBSCRIPTIONS.reload_channels
-  SUBSCRIPTIONS.start_timer
+$redis = nil
+$redis_listen = nil
 
+EM.next_tick do
   unless APP_CONFIG['single_server']
     puts "Multiple server mode activated"
     $redis_listen = EM::Hiredis.connect(APP_CONFIG['redis_url'])
@@ -63,4 +63,6 @@ EM.next_tick do
     end
   end
 
+  SUBSCRIPTIONS.reload_channels
+  SUBSCRIPTIONS.start_timer
 end unless ENV["RACK_ENV"] == 'test'

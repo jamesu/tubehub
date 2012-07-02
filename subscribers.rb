@@ -25,6 +25,7 @@ class SubscriberList
     to_add.each do |channel_id|
       @list[channel_id] = []
       @metadata[channel_id] = Channel.find_by_id(channel_id)
+      set_counter("chan:#{channel_id}:user_count", 0)
     end
 
     # Kick everyone in previous channels
@@ -37,7 +38,7 @@ class SubscriberList
       @list.remove(channel_id)
     end
 
-    puts "Active channels: #{@list.keys}"
+    logger.info "Active channels: #{@list.keys}"
   end
   
   def logger
@@ -66,6 +67,7 @@ class SubscriberList
   
   def reset_skips(channel_id)
     (@list[channel_id]||[]).each{|s| s.skip=false}
+    set_counter("chan:#{channel_id}:skip_count", 0)
   end
   
   # Start a background update timer to advance leaderless channels
@@ -201,6 +203,18 @@ class SubscriberList
   def register_connection(connection)
     @connections.push(connection)
   end
+
+  def increment_counter(name)
+    $redis.incr("#{APP_CONFIG['redis_channel']}#{name}") if $redis
+  end
+
+  def set_counter(name, value)
+    $redis.set("#{APP_CONFIG['redis_channel']}#{name}", value) if $redis
+  end
+
+  def decrement_counter(name)
+    $redis.decr("#{APP_CONFIG['redis_channel']}#{name}") if $redis
+  end
   
   def subscribe(connection, channel)
     return false if !@list.has_key?(channel.id)
@@ -214,6 +228,8 @@ class SubscriberList
       connection.send_message({'t' => 'userjoined', 'user' => socket.user_data, 'scope' => socket.scope_for(channel)})
       num_skips += 1 if socket.skip
     end
+
+    increment_counter("chan:#{channel.id}:user_count")
     
     # Notify skip count
     if num_skips > 0
@@ -227,30 +243,33 @@ class SubscriberList
     chan = channel.class == Channel ? channel.id : channel
     if !channel.nil?
       @list[chan].delete(connection)
-      skip_count = skip_count_in_channel_id(chan)
-      @list[chan].each do |socket|
-        socket.send_message({'t' => 'userleft', 'user' => {:id => connection.user_id}})
-        # Notify skip count
-        socket.send_message({'t' => 'skip', 'count' => skip_count}) if connection.skip
-      end
+      on_user_left(chan, connection)
     else
       @list.each do |subscriber_channel, users|
         if users.include?(connection)
           users.delete(connection)
-          skip_count = skip_count_in_channel_id(subscriber_channel)
-          users.each do |socket|
-            socket.send_message({'t' => 'userleft', 'user' => {:id => connection.user_id}})
-            socket.send_message({'t' => 'skip', 'count' => skip_count}) if connection.skip
-          end
+          on_user_left(subscriber_channel, connection)
         end
       end
       @connections.delete(connection)
     end
   end
 
+  def on_user_left(channel_id, connection)
+    skip_count = skip_count_in_channel_id(channel_id)
+
+    @list[channel_id].each do |socket|
+      socket.send_message({'t' => 'userleft', 'user' => {'id' => connection.user_id}})
+      socket.send_message({'t' => 'skip', 'count' => skip_count}) if connection.skip
+    end
+
+    set_counter("chan:#{channel_id}:skip_count", skip_count)
+    decrement_counter("chan:#{channel_id}:user_count")
+  end
+
   # Handles messages from redis channel
   def handle_redis_event(event)
-    puts "REDIS HANDLE #{event.inspect}"
+    #puts "REDIS HANDLE #{event.inspect}"
     case event['t']
     when 'msg'
       if has_channel_id?(event['channel_id'])
