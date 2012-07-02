@@ -50,19 +50,6 @@ $redis = nil
 $redis_listen = nil
 
 EM.next_tick do
-  unless APP_CONFIG['single_server']
-    puts "Multiple server mode activated"
-    $redis_listen = EM::Hiredis.connect(APP_CONFIG['redis_url'])
-    $redis = EM::Hiredis.connect(APP_CONFIG['redis_url'])
-
-    if ENV['TUBEHUB_MODE'] == 'backend'
-      $redis_listen.subscribe APP_CONFIG['redis_channel']
-      $redis_listen.on(:message) do |channel, msg|
-        SUBSCRIPTIONS.handle_redis_event((JSON.parse(msg) rescue {}))
-      end
-    end
-  end
-
-  SUBSCRIPTIONS.reload_channels
+  SUBSCRIPTIONS.setup
   SUBSCRIPTIONS.start_timer
 end unless ENV["RACK_ENV"] == 'test'

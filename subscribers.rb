@@ -13,6 +13,24 @@ class SubscriberList
     ENV['PORT']
   end
 
+  # Sets up redis, etc
+  def setup
+    unless APP_CONFIG['single_server']
+      puts "Multiple server mode activated"
+      $redis_listen = EM::Hiredis.connect(APP_CONFIG['redis_url'])
+      $redis = EM::Hiredis.connect(APP_CONFIG['redis_url'])
+
+      if ENV['TUBEHUB_MODE'] == 'backend'
+        $redis_listen.subscribe APP_CONFIG['redis_channel']
+        $redis_listen.on(:message) do |channel, msg|
+          handle_redis_event((JSON.parse(msg) rescue {}))
+        end
+      end
+    end
+
+    reload_channels
+  end
+
   def reload_channels
     # Determine which channels we are supposed to admin
     channels = APP_CONFIG['single_server'] ? Channel.all : Channel.where(:backend_server => ident)
@@ -35,7 +53,7 @@ class SubscriberList
         con.close_websocket
       end
       @list[channel_id].clear
-      @list.remove(channel_id)
+      @list.delete(channel_id)
     end
 
     logger.info "Active channels: #{@list.keys}"
@@ -259,7 +277,7 @@ class SubscriberList
     skip_count = skip_count_in_channel_id(channel_id)
 
     @list[channel_id].each do |socket|
-      socket.send_message({'t' => 'userleft', 'user' => {'id' => connection.user_id}})
+      socket.send_message({'t' => 'userleft', 'user' => {:id => connection.user_id}})
       socket.send_message({'t' => 'skip', 'count' => skip_count}) if connection.skip
     end
 

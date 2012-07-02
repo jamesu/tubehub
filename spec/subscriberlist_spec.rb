@@ -7,7 +7,7 @@ describe SubscriberList do
     Moderator.destroy_all
     
     @list = SUBSCRIPTIONS
-    SUBSCRIPTIONS.reset
+    @list.reset
     
     @channel = Channel.create!(:name => 'v4c')
     @channel2 = Channel.create!(:name => 'vop')
@@ -28,11 +28,11 @@ describe SubscriberList do
     @con3 = FakeConnection.new(nil, @mod_name, @mod_tripcode)
     @con4 = FakeConnection.new()
     
-    @list.subscribe(@observer, @channel)
-    @list.subscribe(@con, @channel)
-    @list.subscribe(@con2, @channel)
-    @list.subscribe(@con3, @channel)
-    @list.subscribe(@con4, @channel)
+    @list.subscribe(@observer, @channel).should == true
+    @list.subscribe(@con, @channel).should == true
+    @list.subscribe(@con2, @channel).should == true
+    @list.subscribe(@con3, @channel).should == true
+    @list.subscribe(@con4, @channel).should == true
     
     @observer.messages[1]['scope'].should == 'sumin'
     @observer.messages[2]['scope'].should == 'admin'
@@ -44,8 +44,8 @@ describe SubscriberList do
     @con1 = FakeConnection.new
     @con2 = FakeConnection.new
     
-    @list.subscribe(@con1, @channel)
-    @list.subscribe(@con2, @channel)
+    @list.subscribe(@con1, @channel).should == true
+    @list.subscribe(@con2, @channel).should == true
     
     @con1.messages[1]['t'].should == 'userjoined'
     @con1.messages[1]['user'][:id].should == @con2.user_id
@@ -56,7 +56,7 @@ describe SubscriberList do
     @con1.messages[2]['user'][:id].should == @con2.user_id
     
     # Channel unsubscribe
-    @list.subscribe(@con2, @channel)
+    @list.subscribe(@con2, @channel).should == true
     @list.unsubscribe(@con2, @channel)
     @con1.messages[3]['t'].should == 'userjoined'
     @con1.messages[3]['user'][:id].should == @con2.user_id
@@ -64,13 +64,13 @@ describe SubscriberList do
     @con1.messages[4]['user'][:id].should == @con2.user_id
   end
   
-  it "has_channel_id? should return true when we have subscribers in a channel" do
+  it "has_channel_id? should return true for all channels in single server mode" do
     @con1 = FakeConnection.new
     
     @list.subscribe(@con1, @channel)
     
     @list.has_channel_id?(@channel.id).should == true
-    @list.has_channel_id?(@channel2.id).should == false
+    @list.has_channel_id?(@channel2.id).should == true
   end
   
   it "connection_in_channel_id? should return if a socket is connected to a channel" do
@@ -178,15 +178,15 @@ describe SubscriberList do
     end
     
     it "should advance videos in all channels" do
-      @channel.should_receive(:next_video!)
-      @channel2.should_receive(:next_video!)
+      @list.channel_metadata(@channel.id).should_receive(:next_video!)
+      @list.channel_metadata(@channel2.id).should_receive(:next_video!)
       @list.do_timer
     end
     
     it "should not advance videos for channels with leaders" do
       @observer.leader = true
-      @channel.should_not_receive(:next_video!)
-      @channel2.should_receive(:next_video!)
+      @list.channel_metadata(@channel.id).should_not_receive(:next_video!)
+      @list.channel_metadata(@channel2.id).should_receive(:next_video!)
       @list.do_timer
     end
     

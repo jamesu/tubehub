@@ -7,6 +7,7 @@ class Channel < ActiveRecord::Base
   
   before_update :set_update_info
   after_update :notify_updates
+  after_create :notify_reload
   
   attr_accessible :name, :permalink, :banner, :footer, :moderator_list, :skip_limit, :connection_limit, :video_limit, :backend_server, :locked
   
@@ -178,6 +179,10 @@ class Channel < ActiveRecord::Base
     @time_changed ||= start_time_changed?
     @fields_changed = changes
     true
+  end
+
+  def notify_reload
+    SUBSCRIPTIONS.reload_channels
   end
   
   def notify_updates
