@@ -11,7 +11,7 @@
 #
 # It's strongly recommended to check this file into your version control system.
 
-ActiveRecord::Schema.define(:version => 8) do
+ActiveRecord::Schema.define(:version => 20120622113852) do
 
   create_table "bans", :force => true do |t|
     t.string   "ip"
@@ -41,8 +41,10 @@ ActiveRecord::Schema.define(:version => 8) do
     t.integer  "connection_limit"
     t.boolean  "locked",           :default => false
     t.integer  "video_limit"
+    t.string   "backend_server"
   end
 
+  add_index "channels", ["backend_server"], :name => "index_channels_on_backend_server"
   add_index "channels", ["permalink"], :name => "index_channels_on_permalink"
   add_index "channels", ["user_id"], :name => "index_channels_on_user_id"
 

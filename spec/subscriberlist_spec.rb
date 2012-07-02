@@ -210,5 +210,47 @@ describe SubscriberList do
       end
     end
   end
+
+  describe "handle_redis_event" do
+    it "should handle msg" do
+      SUBSCRIPTIONS.should_receive(:send_message).with(@channel.id, 'test', nil)
+      SUBSCRIPTIONS.handle_redis_event({'t' => 'msg', 'channel_id' => @channel.id, 'msg_t' =>'test', 'data' => nil})
+    end
+
+    it "should handle refresh_users" do
+      SUBSCRIPTIONS.should_receive(:refresh_users)
+      SUBSCRIPTIONS.handle_redis_event({'t' => 'refresh_users'})
+    end
+
+    it "should handle refresh_channels" do
+      SUBSCRIPTIONS.should_receive(:refresh_channels)
+      SUBSCRIPTIONS.handle_redis_event({'t' => 'refresh_channels'})
+    end
+
+    it "should handle reset_skips" do
+      SUBSCRIPTIONS.should_receive(:reset_skips).with(123)
+      SUBSCRIPTIONS.handle_redis_event({'t' => 'reset_skips', 'channel_id' => 123})
+    end
+
+    it "should handle kick" do
+      SUBSCRIPTIONS.should_receive(:kick).with(123)
+      SUBSCRIPTIONS.handle_redis_event({'t' => 'kick', 'user_id' => 123})
+    end
+
+    it "should handle kick_ip" do
+      SUBSCRIPTIONS.should_receive(:kick_ip).with(123)
+      SUBSCRIPTIONS.handle_redis_event({'t' => 'kick_ip', 'ip' => 123})
+    end
+
+    it "should handle ban" do
+      SUBSCRIPTIONS.should_receive(:kick).with(123)
+      SUBSCRIPTIONS.handle_redis_event({'t' => 'ban', 'user_id' => 123})
+    end
+
+    it "should handle setleader" do
+      SUBSCRIPTIONS.should_receive(:set_channel_leader).with(123, 456)
+      SUBSCRIPTIONS.handle_redis_event({'t' => 'setleader', 'channel_id' => 123, 'leader_id' => 456})
+    end
+  end
 end
 

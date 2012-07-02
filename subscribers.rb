@@ -16,7 +16,7 @@ class SubscriberList
   # Sets up redis, etc
   def setup
     unless APP_CONFIG['single_server']
-      puts "Multiple server mode activated"
+      @logger.info "Multiple server mode activated"
       $redis_listen = EM::Hiredis.connect(APP_CONFIG['redis_url'])
       $redis = EM::Hiredis.connect(APP_CONFIG['redis_url'])
 
@@ -181,18 +181,16 @@ class SubscriberList
   
   def ban(user_id)
     con = @connections.find{|c|c.user_id == user_id}
-    unless con.nil?
-      return if con.current_user && con.current_user.admin
+    return if (con.nil? or (con.current_user && con.current_user.admin))
       
-      addresses = con.addresses
-      addresses.each do |addr|
-        #next if addr == '127.0.0.1'
-        Ban.create!(:ip => addr,
-                    :ended_at => Time.now.utc + 1.day,
-                    :banned_by => con.user_name_trip,
-                    :banned_by_ip => con.addresses.join(','),
-                    :comment => "1 day ban")
-      end
+    addresses = con.addresses
+    addresses.each do |addr|
+      #next if addr == '127.0.0.1'
+      Ban.create!(:ip => addr,
+                  :ended_at => Time.now.utc + 1.day,
+                  :banned_by => con.user_name_trip,
+                  :banned_by_ip => con.addresses.join(','),
+                  :comment => "1 day ban")
     end
   end
   
@@ -304,6 +302,7 @@ class SubscriberList
     when 'kick_ip'
       kick_ip(event['ip'])
     when 'ban'
+      kick(event['user_id'])
     when 'setleader'
       set_channel_leader(event['channel_id'], event['leader_id'])
 

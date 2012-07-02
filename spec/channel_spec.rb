@@ -9,6 +9,13 @@ describe Channel do
     SUBSCRIPTIONS.reset
   end
 
+  describe "on construction" do
+    it "should send reload channels" do
+      SUBSCRIPTIONS.should_receive(:reload_channels)
+      @channel = Channel.create!(:name => 'v4c')
+    end
+  end
+
   describe "an instance" do
     before do
       @channel = Channel.create!(:name => 'v4c')
