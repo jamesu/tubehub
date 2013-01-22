@@ -1,1 +1,1 @@
-web: bundle exec thin-websocket -e development -R config.ru start -p $PORT
+web: bundle exec thin -e development -R config.ru start -p $PORT

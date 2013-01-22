@@ -1,2 +1,2 @@
-web: env TUBEHUB_MODE=frontend bundle exec thin-websocket -e development -R config.ru start -p $PORT
-web_slave: env TUBEHUB_MODE=backend bundle exec thin-websocket -e development -R config.ru start -p $PORT
+web: env TUBEHUB_MODE=frontend bundle exec thin -e development -R config.ru start -p $PORT
+web_slave: env TUBEHUB_MODE=backend bundle exec thin -e development -R config.ru start -p $PORT
